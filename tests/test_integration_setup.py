@@ -6,10 +6,19 @@ import types
 import aiohttp
 import pytest
 
-from homeassistant.components.frontend import async_panel_exists
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.samsung_frame_art.const import DOMAIN
+
+
+def _panel_exists(hass, url_path: str) -> bool:
+    """Panel-existence check that works across HA versions."""
+    try:
+        from homeassistant.components.frontend import async_panel_exists
+
+        return async_panel_exists(hass, url_path)
+    except ImportError:
+        return url_path in hass.data.get("frontend_panels", {})
 
 
 TV_IP = "192.168.10.170"
@@ -76,11 +85,7 @@ async def test_setup_entry_registers_panel_services_and_views(hass, hass_client,
     await hass.async_block_till_done()
 
     # Panel registered in the sidebar
-    try:
-        panel_exists = async_panel_exists(hass, DOMAIN)
-    except ImportError:  # older HA versions
-        panel_exists = DOMAIN in hass.data.get("frontend_panels", {})
-    assert panel_exists
+    assert _panel_exists(hass, DOMAIN)
 
     # Services registered
     services = hass.services.async_services().get(DOMAIN, {})
@@ -233,11 +238,11 @@ async def test_unload_removes_panel_and_services(hass, mock_entry, enable_custom
     mock_entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(mock_entry.entry_id)
     await hass.async_block_till_done()
-    assert async_panel_exists(hass, DOMAIN)
+    assert _panel_exists(hass, DOMAIN)
 
     assert await hass.config_entries.async_unload(mock_entry.entry_id)
     await hass.async_block_till_done()
 
-    assert not async_panel_exists(hass, DOMAIN)
+    assert not _panel_exists(hass, DOMAIN)
     services = hass.services.async_services().get(DOMAIN, {})
     assert "random" not in services
