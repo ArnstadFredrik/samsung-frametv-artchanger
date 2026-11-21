@@ -76,7 +76,11 @@ async def test_setup_entry_registers_panel_services_and_views(hass, hass_client,
     await hass.async_block_till_done()
 
     # Panel registered in the sidebar
-    assert async_panel_exists(hass, DOMAIN)
+    try:
+        panel_exists = async_panel_exists(hass, DOMAIN)
+    except ImportError:  # older HA versions
+        panel_exists = DOMAIN in hass.data.get("frontend_panels", {})
+    assert panel_exists
 
     # Services registered
     services = hass.services.async_services().get(DOMAIN, {})
