@@ -6,6 +6,7 @@ const state = {
   busyAssets: new Set(),
   deleteAsset: null,
   retryContext: null,
+  authToken: null,
   settings: {
     tv_ips: [],
     refresh_interval_seconds: 30,
@@ -168,9 +169,17 @@ function toast(message, type = "info") {
   }, 4200);
 }
 
+function authHeaders() {
+  if (!state.authToken) {
+    return {};
+  }
+  return { Authorization: `Bearer ${state.authToken}` };
+}
+
 async function api(path, options = {}) {
   const response = await fetch(withBasePath(path), {
     headers: {
+      ...authHeaders(),
       ...(options.headers || {}),
     },
     ...options,
@@ -357,26 +366,17 @@ function loadThumbnailJob(job) {
   return new Promise((resolve) => {
     const timeoutMs = 20000;
     let timeoutHandle = null;
+    let objectUrl = null;
 
     const done = () => {
       if (timeoutHandle) {
         clearTimeout(timeoutHandle);
         timeoutHandle = null;
       }
-      imageEl.onload = null;
-      imageEl.onerror = null;
       resolve();
     };
 
-    imageEl.onload = () => {
-      if (generation !== thumbQueueState.generation) {
-        done();
-        return;
-      }
-      done();
-    };
-
-    imageEl.onerror = () => {
+    const fail = () => {
       if (generation !== thumbQueueState.generation) {
         done();
         return;
@@ -394,7 +394,33 @@ function loadThumbnailJob(job) {
       done();
     }, timeoutMs);
 
-    imageEl.src = url;
+    // Thumbnails are fetched as blobs so the request can carry the
+    // Authorization header (img src requests cannot set headers).
+    fetch(url, { headers: authHeaders() })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`thumb ${response.status}`);
+        }
+        return response.blob();
+      })
+      .then((blob) => {
+        if (generation !== thumbQueueState.generation || !imageEl.isConnected) {
+          done();
+          return;
+        }
+        objectUrl = URL.createObjectURL(blob);
+        imageEl.onload = () => {
+          done();
+        };
+        imageEl.onerror = () => {
+          imageEl.removeAttribute("src");
+          done();
+        };
+        imageEl.src = objectUrl;
+      })
+      .catch(() => {
+        fail();
+      });
   });
 }
 
@@ -1184,7 +1210,7 @@ async function submitUpload(event) {
 
     const result = readData(response);
     if (result.duplicate) {
-      toast("Duplicaat gedetecteerd: bestaand item behouden.", "info");
+      toast("Duplicate detected: keeping existing item.", "info");
     } else {
       toast("Upload complete.", "success");
     }
@@ -1329,6 +1355,8 @@ function initializeTopBar() {
   });
 }
 
+let initStarted = false;
+
 async function init() {
   bindCropEvents();
   initializeUploadDialog();
@@ -1336,6 +1364,11 @@ async function init() {
   initializeResultDialog();
   initializeSettingsDialog();
   initializeTopBar();
+
+  // Wait briefly for the access token forwarded by the panel element.
+  // If it never arrives (e.g. the page is opened directly outside the
+  // panel), start anyway; API calls will fail with a clear 401 toast.
+  await waitForAuthToken(8000);
 
   await loadSettings();
   state.selectedTvIps = [...state.settings.tv_ips];
@@ -1354,6 +1387,55 @@ async function init() {
   }, 30000);
 }
 
-init().catch((error) => {
-  toast(`Initialization failed: ${error.message}`, "error");
+let authTokenWaiters = null;
+
+function waitForAuthToken(timeoutMs) {
+  if (state.authToken) {
+    return Promise.resolve();
+  }
+  if (!authTokenWaiters) {
+    authTokenWaiters = [];
+  }
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      resolve();
+    }, timeoutMs);
+    authTokenWaiters.push(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
+function onAuthToken(token) {
+  state.authToken = token;
+  if (authTokenWaiters) {
+    const waiters = authTokenWaiters;
+    authTokenWaiters = null;
+    waiters.forEach((resolveWaiter) => resolveWaiter());
+  }
+}
+
+window.addEventListener("message", (event) => {
+  if (event.origin !== window.location.origin) {
+    return;
+  }
+  const msg = event.data;
+  if (!msg || msg.type !== "samsung_frame_art_auth" || !msg.access_token) {
+    return;
+  }
+  const hadToken = Boolean(state.authToken);
+  onAuthToken(msg.access_token);
+  // A fresh token after startup may follow an expiry; refresh data with it.
+  if (hadToken && initStarted) {
+    reloadData().catch(() => {});
+  }
 });
+
+init()
+  .then(() => {
+    initStarted = true;
+  })
+  .catch((error) => {
+    toast(`Initialization failed: ${error.message}`, "error");
+  });
