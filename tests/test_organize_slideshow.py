@@ -49,11 +49,6 @@ class _FakeTVClient:
 
 
 @pytest.fixture
-def hass_config_dir(hass_tmp_config_dir) -> str:
-    return hass_tmp_config_dir
-
-
-@pytest.fixture
 def fake_tv(monkeypatch):
     client = _FakeTVClient()
     monkeypatch.setattr("custom_components.samsung_frame_art.TVClient", lambda timeout=8: client)

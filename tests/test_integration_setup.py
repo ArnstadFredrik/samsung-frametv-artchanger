@@ -58,11 +58,6 @@ def patch_tv_client(monkeypatch):
     monkeypatch.setattr("custom_components.samsung_frame_art.TVClient", _OfflineTVClient)
 
 
-@pytest.fixture
-def hass_config_dir(hass_tmp_config_dir) -> str:
-    """Give every test its own config directory so state never leaks between tests."""
-    return hass_tmp_config_dir
-
 
 @pytest.fixture
 def mock_entry():

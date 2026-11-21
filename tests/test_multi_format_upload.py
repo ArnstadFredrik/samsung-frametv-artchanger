@@ -37,11 +37,6 @@ def patch_tv_client(monkeypatch):
 
 
 @pytest.fixture
-def hass_config_dir(hass_tmp_config_dir) -> str:
-    return hass_tmp_config_dir
-
-
-@pytest.fixture
 def mock_entry():
     return MockConfigEntry(
         domain=DOMAIN,
