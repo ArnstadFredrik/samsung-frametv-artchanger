@@ -9,6 +9,8 @@ const state = {
   authToken: null,
   collectionFilter: null,
   tags: [],
+  sort: "recent",
+  uploadTags: [],
   settings: {
     tv_ips: [],
     refresh_interval_seconds: 30,
@@ -23,6 +25,7 @@ const withBasePath = (path) => `${basePath}${path}`;
 
 const els = {
   collectionSelect: document.getElementById("collectionSelect"),
+  sortSelect: document.getElementById("sortSelect"),
   slideshowBtn: document.getElementById("slideshowBtn"),
   filterSelect: document.getElementById("filterSelect"),
   refreshBtn: document.getElementById("refreshBtn"),
@@ -48,6 +51,9 @@ const els = {
   confirmUploadBtn: document.getElementById("confirmUploadBtn"),
   confirmUploadActivateBtn: document.getElementById("confirmUploadActivateBtn"),
   uploadTvList: document.getElementById("uploadTvList"),
+  uploadTagChips: document.getElementById("uploadTagChips"),
+  uploadTagInput: document.getElementById("uploadTagInput"),
+  uploadAddTagBtn: document.getElementById("uploadAddTagBtn"),
   settingsDialog: document.getElementById("settingsDialog"),
   settingsForm: document.getElementById("settingsForm"),
   newTvIpInput: document.getElementById("newTvIpInput"),
@@ -200,12 +206,13 @@ function authHeaders() {
 }
 
 async function api(path, options = {}) {
+  const { headers: extraHeaders, ...rest } = options;
   const response = await fetch(withBasePath(path), {
+    ...rest,
     headers: {
       ...authHeaders(),
-      ...(options.headers || {}),
+      ...(extraHeaders || {}),
     },
-    ...options,
   });
 
   const contentType = response.headers.get("content-type") || "";
@@ -840,7 +847,7 @@ async function reloadData() {
     const tvQuery = tvSelection.length === 1 ? `&tv_ip=${encodeURIComponent(tvSelection[0])}` : "";
     const collectionQuery = collectionQueryParams();
     const galleryPayload = await api(
-      `/api/samsung_frame_art/gallery?filter=${encodeURIComponent(state.filter)}${tvQuery}${collectionQuery}`
+      `/api/samsung_frame_art/gallery?filter=${encodeURIComponent(state.filter)}${tvQuery}${collectionQuery}&sort=${encodeURIComponent(state.sort)}`
     );
 
     const galleryData = readData(galleryPayload, "items") || [];
@@ -1311,6 +1318,9 @@ async function submitUpload(event) {
   const uploadTvIps = selectedUploadTvIps();
   const finalTvIps = uploadTvIps.length ? uploadTvIps : [...(state.settings.tv_ips || [])];
   payload.append("tv_ips", finalTvIps.join(","));
+  if (state.uploadTags.length) {
+    payload.append("tags", state.uploadTags.join(","));
+  }
 
   const submitButtons = [els.confirmUploadBtn, els.confirmUploadActivateBtn].filter(Boolean);
   submitButtons.forEach((button) => {
@@ -1362,10 +1372,66 @@ async function loadPreviewBlob(form) {
   return response.blob();
 }
 
+function renderUploadTagChips() {
+  els.uploadTagChips.innerHTML = "";
+  if (!state.uploadTags.length) {
+    const empty = document.createElement("span");
+    empty.className = "chip-empty";
+    empty.textContent = "No tags (optional)";
+    els.uploadTagChips.appendChild(empty);
+    return;
+  }
+  for (const tag of state.uploadTags) {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+
+    const label = document.createElement("span");
+    label.textContent = tag;
+    chip.appendChild(label);
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "chip-remove";
+    remove.textContent = "\u00D7";
+    remove.title = `Remove tag ${tag}`;
+    remove.addEventListener("click", () => {
+      state.uploadTags = state.uploadTags.filter((existing) => existing !== tag);
+      renderUploadTagChips();
+    });
+    chip.appendChild(remove);
+    els.uploadTagChips.appendChild(chip);
+  }
+}
+
+function addUploadTagFromInput() {
+  const value = els.uploadTagInput.value.trim();
+  if (!value) {
+    return;
+  }
+  if (value.length > 32) {
+    toast("Tag is too long (max 32 chars).", "error");
+    return;
+  }
+  if (!state.uploadTags.some((existing) => existing.toLowerCase() === value.toLowerCase())) {
+    state.uploadTags.push(value);
+  }
+  els.uploadTagInput.value = "";
+  renderUploadTagChips();
+}
+
 function initializeUploadDialog() {
   els.openUploadBtn.addEventListener("click", () => {
     renderUploadTvList();
+    renderUploadTagChips();
     els.uploadDialog.showModal();
+  });
+
+  els.uploadAddTagBtn.addEventListener("click", addUploadTagFromInput);
+  els.uploadTagInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addUploadTagFromInput();
+    }
   });
 
   els.cancelUploadBtn.addEventListener("click", () => {
@@ -1425,6 +1491,7 @@ function initializeUploadDialog() {
 
   els.uploadDialog.addEventListener("close", () => {
     resetCropState();
+    state.uploadTags = [];
     els.uploadForm.reset();
   });
 
@@ -1511,6 +1578,11 @@ function initializeTopBar() {
         value: value.slice(separator + 1),
       };
     }
+    reloadData().catch((error) => console.warn(error));
+  });
+
+  els.sortSelect.addEventListener("change", () => {
+    state.sort = els.sortSelect.value;
     reloadData().catch((error) => console.warn(error));
   });
 

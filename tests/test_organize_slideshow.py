@@ -242,6 +242,64 @@ async def test_tags_and_slideshow_endpoints(fake_tv, mock_entry, hass, hass_clie
 
 
 @pytest.mark.asyncio
+async def test_sort_by_tag_and_name(hass, hass_client, enable_custom_integrations, fake_tv):
+    mock_entry = MockConfigEntry(
+        domain=DOMAIN, data={"tv": TV_IP, "automation_token": "t", "media_dir": ""}
+    )
+    mock_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_entry.entry_id)
+    await hass.async_block_till_done()
+
+    service = hass.data[DOMAIN][mock_entry.entry_id]["service"]
+    asset_ids = await hass.async_add_executor_job(_seed_local_assets, service, 3, None)
+
+    def run():
+        service.set_asset_tags(asset_ids[1], ["zeta"])
+        service.set_asset_tags(asset_ids[2], ["alpha", "zeta"])
+        return (
+            [item["asset_id"] for item in service.list_gallery(sort="tag")["items"]],
+            [item["asset_id"] for item in service.list_gallery(sort="name")["items"]],
+            [item["asset_id"] for item in service.list_gallery(sort="recent")["items"]],
+        )
+
+    tag_order, name_order, recent_order = await hass.async_add_executor_job(run)
+
+    # Tag sort: untagged images (empty tag list) first, then alpha, then zeta.
+    assert tag_order[0] not in (asset_ids[1], asset_ids[2])
+    assert tag_order[-2:] == [asset_ids[2], asset_ids[1]]
+    # Name sort: art_0 < art_1 < art_2.
+    assert name_order == asset_ids
+    # Recent sort: last updated first (asset_ids[2] got its tag last).
+    assert recent_order[0] == asset_ids[2]
+
+
+@pytest.mark.asyncio
+async def test_upload_with_tags(hass, hass_client, enable_custom_integrations, fake_tv):
+    import aiohttp
+
+    mock_entry = MockConfigEntry(
+        domain=DOMAIN, data={"tv": TV_IP, "automation_token": "t", "media_dir": ""}
+    )
+    mock_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_entry.entry_id)
+    await hass.async_block_till_done()
+    client = await hass_client()
+
+    form = aiohttp.FormData()
+    form.add_field("file", _sample_jpeg(), filename="photo.jpg", content_type="image/jpeg")
+    form.add_field("tags", "sommer, favoritt")
+    resp = await client.post("/api/samsung_frame_art/upload", data=form)
+    assert resp.status == 200
+    body = await resp.json()
+    assert body["data"]["asset"]["tags"] == ["sommer", "favoritt"]
+
+    # Tags land in the tag list immediately.
+    resp = await client.get("/api/samsung_frame_art/tags")
+    body = await resp.json()
+    assert {entry["tag"] for entry in body["tags"]} == {"sommer", "favoritt"}
+
+
+@pytest.mark.asyncio
 async def test_slideshow_start_without_matching_assets(fake_tv, mock_entry, hass, hass_client, enable_custom_integrations):
     mock_entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(mock_entry.entry_id)

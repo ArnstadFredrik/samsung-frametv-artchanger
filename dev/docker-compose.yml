@@ -1,0 +1,13 @@
+services:
+  homeassistant:
+    container_name: frame-art-dev
+    image: ghcr.io/home-assistant/home-assistant:stable
+    volumes:
+      - ./dev-config:/config
+      # The integration is mounted live from the repo — code edits only need
+      # a container restart (docker compose restart) to take effect.
+      - ../custom_components/samsung_frame_art:/config/custom_components/samsung_frame_art
+    ports:
+      - "8123:8123"
+    environment:
+      - TZ=Europe/Oslo

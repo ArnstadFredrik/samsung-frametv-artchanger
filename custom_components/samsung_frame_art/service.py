@@ -632,13 +632,7 @@ class GalleryService:
 
     # ----------------------------------------------------------- organizing
 
-    def set_asset_tags(self, asset_id: str, tags: List[str]) -> Dict[str, Any]:
-        """Replace the tag list of an asset and persist it."""
-        state = self.store.load()
-        asset = state["assets"].get(asset_id)
-        if not asset:
-            raise NotFoundError(f"Unknown asset_id: {asset_id}")
-
+    def _clean_tags(self, tags: List[str]) -> List[str]:
         cleaned: List[str] = []
         seen = set()
         for raw in tags:
@@ -655,11 +649,19 @@ class GalleryService:
 
         if len(cleaned) > 16:
             raise InvalidInputError("Too many tags (max 16 per image)")
+        return cleaned
 
-        asset["tags"] = cleaned
+    def set_asset_tags(self, asset_id: str, tags: List[str]) -> Dict[str, Any]:
+        """Replace the tag list of an asset and persist it."""
+        state = self.store.load()
+        asset = state["assets"].get(asset_id)
+        if not asset:
+            raise NotFoundError(f"Unknown asset_id: {asset_id}")
+
+        asset["tags"] = self._clean_tags(tags)
         asset["updated_at"] = utc_now()
         self.store.save(state)
-        return {"asset_id": asset_id, "tags": cleaned}
+        return {"asset_id": asset_id, "tags": asset["tags"]}
 
     def list_tags(self) -> List[Dict[str, Any]]:
         """All tags with usage counts."""
@@ -704,6 +706,7 @@ class GalleryService:
         trigger_refresh: bool = True,
         tag: Optional[str] = None,
         folder: Optional[str] = None,
+        sort: str = "recent",
     ) -> Dict[str, Any]:
         if trigger_refresh:
             self.refresh(force=False, wait=False)
@@ -732,7 +735,12 @@ class GalleryService:
 
             items.append(item)
 
-        items.sort(key=lambda x: x.get("updated_at") or "", reverse=True)
+        if sort == "name":
+            items.sort(key=lambda x: (x.get("filename") or "").lower())
+        elif sort == "tag":
+            items.sort(key=lambda x: ([t.lower() for t in (x.get("tags") or [])], (x.get("filename") or "").lower()))
+        else:
+            items.sort(key=lambda x: x.get("updated_at") or "", reverse=True)
 
         # Folder options come from the unfiltered set so the collection menu
         # does not shrink while a filter is active.
@@ -772,6 +780,7 @@ class GalleryService:
         crop: Optional[Dict[str, float]] = None,
         activate: bool = False,
         tv_ips: Optional[List[str]] = None,
+        tags: Optional[List[str]] = None,
     ) -> UploadResult:
         prepared_bytes, digest = self.media_service.prepare_image(file_bytes, crop)
         state = self.store.load()
@@ -794,10 +803,14 @@ class GalleryService:
                 "created_at": utc_now(),
                 "updated_at": utc_now(),
                 "tv_map": {},
+                "tags": [],
             }
             assets[digest] = asset
         else:
             asset["updated_at"] = utc_now()
+
+        if tags:
+            asset["tags"] = self._clean_tags(tags)
 
         self.store.save(state)
         self._cleanup_asset_thumbs(digest)

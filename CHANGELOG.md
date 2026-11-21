@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.8
+
+- Fixed 401 when saving tags (and other JSON POST/PUT calls): the API helper dropped the Authorization header whenever a Content-Type header was set.
+- Tags can be added directly in the upload dialog and land on the uploaded image.
+- Gallery can be sorted by Newest, Name, or Tag.
+- Dev server: `dev/docker-compose.yml` runs a throwaway Home Assistant in Docker with the integration mounted live from the repo (see `dev/README-dev.md`).
+
 ## 0.0.7
 
 - Fixed the slideshow panel UI never leaving "Stopped": the status poller passed the raw API envelope to the UI update, overwriting the running state every 2 seconds (the slideshow itself ran fine).

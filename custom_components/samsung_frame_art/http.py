@@ -209,7 +209,12 @@ class FrameArtGalleryView(HomeAssistantView):
         folder = request.query.get("folder")
         folder = None if folder in (None, "") else folder
         gallery = service.list_gallery(
-            filter_name=filter_name, tv_ip=tv_ip, trigger_refresh=True, tag=tag, folder=folder
+            filter_name=filter_name,
+            tv_ip=tv_ip,
+            trigger_refresh=True,
+            tag=tag,
+            folder=folder,
+            sort=request.query.get("sort", "recent"),
         )
         return _with_meta(request, service, gallery, compatibility=gallery)
 
@@ -272,6 +277,9 @@ class FrameArtUploadView(HomeAssistantView):
         selected_tvs = parse_tv_ips(post.get("tv_ips"))
         should_activate = str(post.get("activate", "")).strip().lower() in {"1", "true", "yes", "on"}
 
+        tags_raw = post.get("tags")
+        tags = [part.strip() for part in str(tags_raw or "").split(",")] if tags_raw else None
+
         result = await _run_in_executor(
             hass,
             lambda: service.upload_image(
@@ -279,6 +287,7 @@ class FrameArtUploadView(HomeAssistantView):
                 crop=crop_data,
                 activate=should_activate,
                 tv_ips=selected_tvs,
+                tags=tags,
             ),
         )
 

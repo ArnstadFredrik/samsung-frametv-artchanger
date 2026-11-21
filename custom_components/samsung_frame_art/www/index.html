@@ -23,6 +23,11 @@
           <select id="collectionSelect">
             <option value="">All images</option>
           </select>
+          <select id="sortSelect" title="Sort order">
+            <option value="recent">Newest first</option>
+            <option value="name">Name</option>
+            <option value="tag">Tag</option>
+          </select>
           <select id="filterSelect">
             <option value="all">All</option>
             <option value="tv">TV only</option>
@@ -80,6 +85,15 @@
             </div>
           </label>
         </div>
+        <fieldset class="target-choice">
+          <legend class="section-label">Tags (optional)</legend>
+          <div id="uploadTagChips" class="chip-list"></div>
+          <div class="inline-input">
+            <input id="uploadTagInput" type="text" placeholder="Add tag (max 32 chars)" maxlength="32" />
+            <button id="uploadAddTagBtn" type="button" class="btn secondary">Add</button>
+          </div>
+        </fieldset>
+
         <fieldset class="target-choice">
           <legend class="section-label">Upload to TVs</legend>
           <div id="uploadTvList" class="upload-tv-list"></div>
