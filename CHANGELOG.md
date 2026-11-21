@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.11
+
+- Slideshow and random can now include TV-discovered art (images that exist only on the TV, no local copy) — they are selected directly via their content ID without uploading. Previously only images with a local file were eligible, which made tags on TV-discovered images unusable for slideshows.
+
 ## 0.0.10
 
 - Slideshow indicator in the top bar: a pulsing badge showing interval and current image whenever the slideshow runs — kept up to date by a background status poll even with the dialog closed.

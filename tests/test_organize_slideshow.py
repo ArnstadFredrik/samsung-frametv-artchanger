@@ -300,6 +300,70 @@ async def test_upload_with_tags(hass, hass_client, enable_custom_integrations, f
 
 
 @pytest.mark.asyncio
+async def test_slideshow_includes_tv_discovered_assets(fake_tv, mock_entry, hass, hass_client, enable_custom_integrations):
+    """TV-discovered art (no local file) with a tag is slideshow-eligible."""
+    mock_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_entry.entry_id)
+    await hass.async_block_till_done()
+
+    service = hass.data[DOMAIN][mock_entry.entry_id]["service"]
+
+    def seed():
+        state = service.store.load()
+        state["assets"]["tv-asset-1"] = {
+            "asset_id": "tv-asset-1",
+            "filename": "TV art",
+            "ha_rel_path": None,
+            "source": "tv_discovery",
+            "created_at": "2026-11-21T00:00:00+00:00",
+            "updated_at": "2026-11-21T00:00:00+00:00",
+            "tags": ["familie"],
+            "tv_map": {TV_IP: {"content_id": "MY_F0009", "on_tv": True, "active": False, "error": None}},
+        }
+        service.store.save(state)
+
+    await hass.async_add_executor_job(seed)
+
+    # The TV reports the seeded content_id as available (it lives on the TV).
+    fake_tv.snapshot = lambda tv_ip: types.SimpleNamespace(
+        online=True,
+        supported=True,
+        available_ids={"MY_F0009"},
+        available_items={"MY_F0009": {"content_id": "MY_F0009", "title": "TV art"}},
+        active_id=None,
+        error=None,
+    )
+    service.runtime.clear_snapshot_cache()
+
+    resp = await client_post(hass, hass_client, "/api/samsung_frame_art/slideshow/start", {
+        "tag": "familie",
+        "interval_seconds": 5,
+        "shuffle": False,
+        "tv_ips": [TV_IP],
+    })
+    assert resp.status == 200
+    body = await resp.json()
+    assert body["data"]["assets_in_rotation"] == 1
+
+    # The TV-present asset gets selected directly (no upload needed).
+    deadline = time.time() + 10
+    while time.time() < deadline and not fake_tv.select_calls:
+        await hass.async_add_executor_job(time.sleep, 0.2)
+    assert (TV_IP, "MY_F0009") in fake_tv.select_calls
+    assert fake_tv.upload_calls == []
+
+    resp = await client_post(hass, hass_client, "/api/samsung_frame_art/slideshow/stop", None)
+    assert resp.status == 200
+
+
+async def client_post(hass, hass_client, url, payload):
+    client = await hass_client()
+    if payload is None:
+        return await client.post(url)
+    return await client.post(url, json=payload)
+
+
+@pytest.mark.asyncio
 async def test_slideshow_start_without_matching_assets(fake_tv, mock_entry, hass, hass_client, enable_custom_integrations):
     mock_entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(mock_entry.entry_id)

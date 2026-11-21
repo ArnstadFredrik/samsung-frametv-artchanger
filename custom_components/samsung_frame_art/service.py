@@ -689,16 +689,29 @@ class GalleryService:
         tag: Optional[str] = None,
         folder: Optional[str] = None,
     ) -> List[str]:
-        """Asset IDs of local gallery images, optionally filtered by tag/folder."""
+        """Asset IDs that can be shown by the slideshow, optionally filtered.
+
+        An asset is eligible when it has a local file in the media folder OR a
+        content_id on a TV (TV-discovered art can be selected directly without
+        a local copy). The folder filter only matches local files, since
+        TV-discovered assets have no folder.
+        """
         state = self.store.load()
         result: List[str] = []
         for asset_id, asset in state["assets"].items():
-            if not self._ha_path_for_asset(asset):
+            has_local = bool(self._ha_path_for_asset(asset))
+            has_tv_copy = any(
+                bool(entry and entry.get("content_id"))
+                for entry in asset.get("tv_map", {}).values()
+            )
+            if not has_local and not has_tv_copy:
                 continue
             if tag and tag not in [str(item) for item in asset.get("tags", [])]:
                 continue
             if folder is not None:
                 rel_path = asset.get("ha_rel_path") or ""
+                if not has_local:
+                    continue
                 current_folder = os.path.dirname(rel_path).replace("\\", "/")
                 if current_folder != folder:
                     continue
@@ -1000,18 +1013,13 @@ class GalleryService:
         ensure_upload: bool = True,
         activate: bool = True,
     ) -> Dict[str, Any]:
-        state = self.store.load()
+        # Same eligibility as the slideshow: local files and TV-present assets.
+        asset_ids = self.list_slideshow_assets()
 
-        ha_assets = [
-            asset_id
-            for asset_id, asset in state["assets"].items()
-            if self._ha_path_for_asset(asset)
-        ]
-
-        if not ha_assets:
+        if not asset_ids:
             raise NoRandomAssetsError()
 
-        selected_asset_id = random.choice(ha_assets)
+        selected_asset_id = random.choice(asset_ids)
         result = self.activate_asset(
             selected_asset_id,
             tv_ips=tv_ips,
