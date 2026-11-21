@@ -18,7 +18,7 @@ from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant
 
 from .config import parse_tv_ips
-from .const import DOMAIN
+from .const import DOMAIN, SUPPORTED_UPLOAD_EXTENSIONS
 from .errors import AppError, InvalidInputError, UnauthorizedError, error_payload
 from .schemas import (
     ActivateRequest,
@@ -246,8 +246,12 @@ class FrameArtUploadView(HomeAssistantView):
 
         filename = upload.filename or ""
         ext = os.path.splitext(filename)[1].lower()
-        if ext not in {".jpg", ".jpeg", ".png"}:
-            raise InvalidInputError("Only .jpg, .jpeg and .png files are supported")
+        if ext not in SUPPORTED_UPLOAD_EXTENSIONS:
+            raise InvalidInputError(
+                "Unsupported image format: "
+                f"{ext or 'unknown'}. Supported: "
+                + ", ".join(sorted(SUPPORTED_UPLOAD_EXTENSIONS))
+            )
 
         payload = upload.file.read()
         if not payload:

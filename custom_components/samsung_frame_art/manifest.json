@@ -17,8 +17,9 @@
     "samsungtvws"
   ],
   "requirements": [
-    "samsungtvws>=2.7.0"
+    "samsungtvws>=2.7.0",
+    "pillow-heif>=1.0.0"
   ],
   "single_config_entry": true,
-  "version": "1.0.3"
+  "version": "1.0.4"
 }

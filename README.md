@@ -16,6 +16,7 @@ A Home Assistant custom integration that manages Samsung The Frame TV artwork wi
   - HA items become visible and can be activated on the TV.
   - TV items become visible, including background thumbnail fetch via a queue.
 - Upload with interactive crop to fixed output `3840x2160` (JPEG quality 90).
+- Supported input formats: JPEG, PNG, WebP, GIF, BMP, TIFF, HEIC/HEIF (iPhone photos) and AVIF. Everything is automatically converted to the TV's required 3840x2160 JPEG before upload; HEIC/HEIF support is provided by pillow-heif.
 - Crop tools: zoom, rotation slider (`-45..45`), extra 90-degree rotation, horizontal flip.
 - Actions per item: activate on selected TVs, delete from `tv`, `ha` or `both`.
 - Non-blocking refresh with metadata (`stale`, `refresh_in_progress`, `last_refresh`).

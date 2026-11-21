@@ -6,6 +6,16 @@ from typing import Any, Dict, Optional, Tuple
 
 from PIL import Image, ImageOps
 
+try:
+    # HEIC/HEIF support (iPhone photos). Declared in manifest.json requirements;
+    # degrade gracefully if the install could not provide it.
+    import pillow_heif
+
+    pillow_heif.register_heif_opener()
+    HEIF_SUPPORTED = True
+except ImportError:  # pragma: no cover - depends on environment
+    HEIF_SUPPORTED = False
+
 
 TARGET_WIDTH = 3840
 TARGET_HEIGHT = 2160

@@ -16,6 +16,7 @@ import time
 from typing import Any, Dict, Iterable, List, Optional
 
 from .config import Settings
+from .const import SUPPORTED_UPLOAD_EXTENSIONS
 from .errors import InvalidInputError, NoRandomAssetsError, NotFoundError, OperationError, classify_operation_exception
 from .media import MediaService
 from .runtime import RuntimeState
@@ -24,7 +25,7 @@ from .tv_client import TVClient
 
 
 _LOGGER = logging.getLogger(__name__)
-SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+SUPPORTED_EXTENSIONS = SUPPORTED_UPLOAD_EXTENSIONS
 
 
 def utc_now() -> str:

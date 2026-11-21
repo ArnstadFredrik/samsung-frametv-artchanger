@@ -16,4 +16,18 @@ PANEL_URL_PATH = DOMAIN
 PANEL_TITLE = "Frame Art"
 PANEL_ICON = "mdi:image-multiple"
 
-SUPPORTED_UPLOAD_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+# Upload/scan formats. Pillow handles jpg/png/webp/gif/bmp/tiff/avif natively;
+# heic/heif require pillow-heif (declared in manifest.json requirements).
+SUPPORTED_UPLOAD_EXTENSIONS = {
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+    ".gif",
+    ".bmp",
+    ".tif",
+    ".tiff",
+    ".heic",
+    ".heif",
+    ".avif",
+}
