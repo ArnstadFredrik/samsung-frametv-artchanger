@@ -1,0 +1,61 @@
+random:
+  name: Random art
+  description: Pick a random local gallery image and show it on the Frame TV(s).
+  fields:
+    tv_ips:
+      name: TV IP addresses
+      description: Optional list of TV IP addresses. Defaults to all configured TVs.
+      example: '["192.168.1.50"]'
+      required: false
+      selector:
+        object: {}
+    ensure_upload:
+      name: Ensure upload
+      description: Upload the image to the TV first if it is not already there.
+      default: true
+      required: false
+      selector:
+        boolean: {}
+    activate:
+      name: Activate
+      description: Show the image on the TV after upload.
+      default: true
+      required: false
+      selector:
+        boolean: {}
+refresh:
+  name: Refresh gallery
+  description: Re-scan the media folder and refresh TV art state.
+  fields:
+    force:
+      name: Force
+      description: Bypass the snapshot cache and fetch fresh TV state.
+      default: false
+      required: false
+      selector:
+        boolean: {}
+activate:
+  name: Activate art
+  description: Upload (if needed) and show a specific gallery asset on the Frame TV(s).
+  fields:
+    asset_id:
+      name: Asset ID
+      description: The gallery asset ID to show (visible in the panel URL / API).
+      example: 9f2c1a…jpg
+      required: true
+      selector:
+        text: {}
+    tv_ips:
+      name: TV IP addresses
+      description: Optional list of TV IP addresses. Defaults to all configured TVs.
+      example: '["192.168.1.50"]'
+      required: false
+      selector:
+        object: {}
+    ensure_upload:
+      name: Ensure upload
+      description: Upload the image to the TV first if it is not already there.
+      default: true
+      required: false
+      selector:
+        boolean: {}

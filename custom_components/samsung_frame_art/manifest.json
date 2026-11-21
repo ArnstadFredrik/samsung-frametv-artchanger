@@ -1,0 +1,15 @@
+{
+  "domain": "samsung_frame_art",
+  "name": "Samsung Frame TV Art Changer",
+  "codeowners": ["@ArnstadFredrik"],
+  "config_flow": true,
+  "dependencies": ["http", "frontend"],
+  "documentation": "https://github.com/ArnstadFredrik/samsung-frametv-artchanger",
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/ArnstadFredrik/samsung-frametv-artchanger/issues",
+  "loggers": ["samsungtvws"],
+  "requirements": ["samsungtvws>=2.7.0", "Pillow>=10.0.0"],
+  "single_config_entry": true,
+  "version": "1.0.0"
+}

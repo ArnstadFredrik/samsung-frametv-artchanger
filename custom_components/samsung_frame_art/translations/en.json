@@ -1,0 +1,30 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Samsung Frame TV Art Changer",
+        "description": "Connect to one or more Samsung The Frame TVs. Media folder: leave empty to use the default <config>/frame_art directory, or enter an absolute path (for example /media/frame).",
+        "data": {
+          "tv": "TV IP address(es) (comma-separated)",
+          "automation_token": "Automation token (optional, bearer token for /api/samsung_frame_art/automation/random)",
+          "media_dir": "Media folder (optional)"
+        }
+      },
+      "init": {
+        "title": "Samsung Frame TV Art Changer",
+        "description": "Update TV addresses, the automation token, or the media folder. Changes take effect after a reload of the entry.",
+        "data": {
+          "tv": "TV IP address(es) (comma-separated)",
+          "automation_token": "Automation token (optional)",
+          "media_dir": "Media folder (optional)"
+        }
+      }
+    },
+    "error": {
+      "invalid_tv_ips": "At least one valid TV IP address is required"
+    },
+    "abort": {
+      "already_configured": "This integration is already configured"
+    }
+  }
+}
