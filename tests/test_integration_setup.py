@@ -27,7 +27,7 @@ TV_IP = "192.168.10.170"
 class _OfflineTVClient:
     """Deterministic TV client stub: every TV is offline, no sockets are opened."""
 
-    def __init__(self, timeout: int = 8) -> None:
+    def __init__(self, timeout: int = 8, token_dir=None) -> None:
         self.timeout = timeout
 
     def snapshot(self, tv_ip: str):

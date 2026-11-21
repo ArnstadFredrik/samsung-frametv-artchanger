@@ -27,6 +27,7 @@
             <option value="recent">Newest first</option>
             <option value="name">Name</option>
             <option value="tag">Tag</option>
+            <option value="folder">Folder</option>
           </select>
           <select id="filterSelect">
             <option value="all">All</option>
@@ -178,6 +179,7 @@
           <input id="newTagInput" type="text" placeholder="Add tag (max 32 chars)" maxlength="32" />
           <button id="addTagBtn" type="button" class="btn secondary">Add</button>
         </div>
+        <div id="tagSuggestions" class="chip-list"></div>
         <menu>
           <button id="cancelTagBtn" type="button" class="btn secondary">Close</button>
           <button id="saveTagBtn" type="submit" class="btn primary">Save</button>

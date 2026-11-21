@@ -78,8 +78,14 @@ class GalleryService:
         self._tv_thumb_worker.start()
 
         self.slideshow = SlideshowManager(
-            activate=lambda asset_id, tv_ips=None, ensure_upload=True, activate=True: self.activate_asset(
-                asset_id, tv_ips=tv_ips, ensure_upload=ensure_upload, activate=activate
+            activate=lambda asset_id, tv_ips=None, ensure_upload=True, activate=True, trigger_refresh=True: (
+                self.activate_asset(
+                    asset_id,
+                    tv_ips=tv_ips,
+                    ensure_upload=ensure_upload,
+                    activate=activate,
+                    trigger_refresh=trigger_refresh,
+                )
             ),
             list_assets=lambda tag=None, folder=None: self.list_slideshow_assets(tag=tag, folder=folder),
         )
@@ -739,6 +745,8 @@ class GalleryService:
             items.sort(key=lambda x: (x.get("filename") or "").lower())
         elif sort == "tag":
             items.sort(key=lambda x: ([t.lower() for t in (x.get("tags") or [])], (x.get("filename") or "").lower()))
+        elif sort == "folder":
+            items.sort(key=lambda x: (x.get("folder") or "", (x.get("filename") or "").lower()))
         else:
             items.sort(key=lambda x: x.get("updated_at") or "", reverse=True)
 
@@ -839,6 +847,7 @@ class GalleryService:
         tv_ips: Optional[List[str]] = None,
         ensure_upload: bool = True,
         activate: bool = True,
+        trigger_refresh: bool = True,
     ) -> Dict[str, Any]:
         selected_tvs = self.resolve_tv_ips(tv_ips)
         state = self.store.load()
@@ -901,7 +910,8 @@ class GalleryService:
                 }
 
         self.store.save(state)
-        self.refresh(force=True, wait=False)
+        if trigger_refresh:
+            self.refresh(force=True, wait=False)
         return {
             "asset_id": asset_id,
             "results": results,

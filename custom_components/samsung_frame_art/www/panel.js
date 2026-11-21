@@ -56,6 +56,14 @@ class SamsungFrameArtPanel extends HTMLElement {
     );
   }
 
+  _forceTokenRepost() {
+    // The embedded app hit a 401 and asked for a fresh token — the hass
+    // object may have been mutated in place, so compare-and-skip won't
+    // see the change. Always re-send.
+    this._lastToken = undefined;
+    this._postToken();
+  }
+
   // Properties pushed by Home Assistant. The hass object (with the current
   // access token) is forwarded to the iframe.
   set hass(value) {
@@ -77,3 +85,19 @@ class SamsungFrameArtPanel extends HTMLElement {
 }
 
 customElements.define("samsung-frame-art-panel", SamsungFrameArtPanel);
+
+// The embedded app asks for a fresh token when it gets a 401 (expired or
+// stale forwarded token). Re-post the current one into the iframe.
+window.addEventListener("message", (event) => {
+  if (event.origin !== window.location.origin) {
+    return;
+  }
+  const msg = event.data;
+  if (!msg || msg.type !== "samsung_frame_art_token_request") {
+    return;
+  }
+  const panelEl = document.querySelector("samsung-frame-art-panel");
+  if (panelEl && typeof panelEl._forceTokenRepost === "function") {
+    panelEl._forceTokenRepost();
+  }
+});

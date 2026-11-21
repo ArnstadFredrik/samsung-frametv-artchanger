@@ -147,8 +147,13 @@ class SlideshowManager:
                     break
 
                 interval = max(5, int(self._config.get("interval_seconds", SLIDESHOW_DEFAULT_INTERVAL_SECONDS)))
+                # Back off on failures so a slow/overloaded TV gets room to
+                # recover instead of being hammered at the configured interval.
+                with self._lock:
+                    failures = self._consecutive_failures
+                effective = interval if failures == 0 else max(interval, min(interval * failures, 300))
                 waited = 0.0
-                while waited < interval and not self._stop_event.is_set() and not self._skip_event.is_set():
+                while waited < effective and not self._stop_event.is_set() and not self._skip_event.is_set():
                     time.sleep(0.5)
                     waited += 0.5
                 self._skip_event.clear()
@@ -172,7 +177,16 @@ class SlideshowManager:
             self._index += 1
 
         try:
-            result = self._activate(asset_id, tv_ips=self._config.get("tv_ips"), ensure_upload=True, activate=True)
+            # Slideshow activations skip the trailing force-refresh: with short
+            # intervals it would hammer the TV with constant full re-scans. The
+            # next gallery refresh picks up the state anyway.
+            result = self._activate(
+                asset_id,
+                tv_ips=self._config.get("tv_ips"),
+                ensure_upload=True,
+                activate=True,
+                trigger_refresh=False,
+            )
             all_ok = bool(result.get("results")) and all(
                 entry.get("ok") for entry in result.get("results", {}).values()
             )

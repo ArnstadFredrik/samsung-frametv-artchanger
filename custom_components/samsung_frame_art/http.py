@@ -323,6 +323,7 @@ class FrameArtActivateView(HomeAssistantView):
                 tv_ips=payload.tv_ips,
                 ensure_upload=payload.ensure_upload,
                 activate=payload.activate,
+                trigger_refresh=True,
             ),
         )
         return web.json_response(_with_meta(request, service, result, compatibility=result))

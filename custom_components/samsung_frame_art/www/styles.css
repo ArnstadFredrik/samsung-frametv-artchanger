@@ -325,6 +325,22 @@ input[type="text"] {
   background: #7c3aed;
 }
 
+.gallery-group-header {
+  grid-column: 1 / -1;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 14px 0 4px;
+  opacity: 0.85;
+}
+
+.chip-suggestion {
+  cursor: pointer;
+  border: 1px dashed var(--border, #555);
+  background: transparent;
+  color: inherit;
+  font-size: 0.72rem;
+}
+
 /* Tag editor chips */
 .chip-list {
   display: flex;

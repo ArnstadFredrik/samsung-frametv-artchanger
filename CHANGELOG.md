@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.9
+
+- Tag dialog now suggests existing tags as clickable chips.
+- Gallery group headers: sorting by Tag groups images under their tag, sorting by Folder groups them under their media-folder subfolder.
+- Slideshow with short intervals no longer hammers the TV: activations skip the trailing force-refresh, and failures back off (up to 5× interval, capped at 5 min) instead of triggering the failure stop immediately.
+- 401 self-healing: when the embedded app gets a 401 (expired forwarded token), it asks the panel for the current token and retries once.
+
 ## 0.0.8
 
 - Fixed 401 when saving tags (and other JSON POST/PUT calls): the API helper dropped the Authorization header whenever a Content-Type header was set.

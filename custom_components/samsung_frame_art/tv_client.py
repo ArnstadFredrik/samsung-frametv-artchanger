@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 import time
 from typing import Any, Dict, List, Optional, Set
 
@@ -18,14 +19,24 @@ class TVSnapshot:
 
 
 class TVClient:
-    def __init__(self, timeout: int = 8) -> None:
+    def __init__(self, timeout: int = 8, token_dir: Optional[str] = None) -> None:
         self.timeout = timeout
+        # Per-TV token file: the Samsung art API requires pairing. On the first
+        # connection the TV shows an "Allow" prompt; samsungtvws persists the
+        # token to the file after a successful pairing and reuses it afterwards.
+        self.token_dir = token_dir
+
+    def _token_file(self, tv_ip: str) -> Optional[str]:
+        if not self.token_dir:
+            return None
+        os.makedirs(self.token_dir, exist_ok=True)
+        return os.path.join(self.token_dir, f"tv_token_{tv_ip}.json")
 
     def _tv(self, tv_ip: str) -> SamsungTVWS:
-        return SamsungTVWS(tv_ip, timeout=self.timeout)
+        return SamsungTVWS(tv_ip, timeout=self.timeout, token_file=self._token_file(tv_ip))
 
     def _thumbnail_tv(self, tv_ip: str) -> SamsungTVWS:
-        return SamsungTVWS(tv_ip, timeout=max(self.timeout, 10))
+        return SamsungTVWS(tv_ip, timeout=max(self.timeout, 10), token_file=self._token_file(tv_ip))
 
     def _extract_thumbnail_bytes(self, payload: Any) -> Optional[bytes]:
         if isinstance(payload, (bytes, bytearray)):
@@ -85,13 +96,19 @@ class TVClient:
                 active_id=active_id,
             )
         except Exception as exc:  # pragma: no cover - integration behavior
+            error_text = str(exc)
+            if "ms.channel.timeOut" in error_text:
+                error_text = (
+                    "The TV did not answer the art request — accept the connection "
+                    f"request on the TV screen (pairing): {error_text}"
+                )
             return TVSnapshot(
                 online=False,
                 supported=False,
                 available_ids=set(),
                 available_items={},
                 active_id=None,
-                error=str(exc),
+                error=error_text,
             )
 
     def upload(self, tv_ip: str, image_bytes: bytes, file_type: str = "JPEG") -> str:

@@ -51,7 +51,7 @@ class _FakeTVClient:
 @pytest.fixture
 def fake_tv(monkeypatch):
     client = _FakeTVClient()
-    monkeypatch.setattr("custom_components.samsung_frame_art.TVClient", lambda timeout=8: client)
+    monkeypatch.setattr("custom_components.samsung_frame_art.TVClient", lambda timeout=8, token_dir=None: client)
     return client
 
 

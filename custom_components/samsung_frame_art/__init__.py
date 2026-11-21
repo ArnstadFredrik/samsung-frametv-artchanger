@@ -88,7 +88,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         settings=settings,
         store=store,
         media_service=MediaService(),
-        tv_client=TVClient(),
+        tv_client=TVClient(timeout=10, token_dir=settings.data_dir),
         runtime=runtime,
     )
 

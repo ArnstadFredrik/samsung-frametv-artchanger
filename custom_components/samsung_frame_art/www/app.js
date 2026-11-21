@@ -74,6 +74,7 @@ const els = {
   addTagBtn: document.getElementById("addTagBtn"),
   cancelTagBtn: document.getElementById("cancelTagBtn"),
   saveTagBtn: document.getElementById("saveTagBtn"),
+  tagSuggestions: document.getElementById("tagSuggestions"),
   slideshowDialog: document.getElementById("slideshowDialog"),
   slideshowCollection: document.getElementById("slideshowCollection"),
   slideshowInterval: document.getElementById("slideshowInterval"),
@@ -205,7 +206,15 @@ function authHeaders() {
   return { Authorization: `Bearer ${state.authToken}` };
 }
 
-async function api(path, options = {}) {
+function requestTokenRefresh() {
+  try {
+    window.parent.postMessage({ type: "samsung_frame_art_token_request" }, window.location.origin);
+  } catch (error) {
+    // not embedded
+  }
+}
+
+async function api(path, options = {}, retried = false) {
   const { headers: extraHeaders, ...rest } = options;
   const response = await fetch(withBasePath(path), {
     ...rest,
@@ -214,6 +223,14 @@ async function api(path, options = {}) {
       ...(extraHeaders || {}),
     },
   });
+
+  if (response.status === 401 && !retried) {
+    // The forwarded access token may have expired; ask the panel for the
+    // current one, wait briefly, and retry once.
+    requestTokenRefresh();
+    await waitForAuthToken(3000);
+    return api(path, options, true);
+  }
 
   const contentType = response.headers.get("content-type") || "";
   const isJson = contentType.includes("application/json");
@@ -302,6 +319,7 @@ function renderTvPanel() {
 function renderGallery() {
   els.gallery.innerHTML = "";
   resetThumbnailQueue();
+  renderGallery._lastGroup = null;
 
   if (!state.gallery.length) {
     const empty = document.createElement("div");
@@ -312,7 +330,35 @@ function renderGallery() {
     return;
   }
 
-  state.gallery.forEach((item) => {
+function galleryGroupKey(item) {
+  if (state.sort === "tag") {
+    return (item.tags && item.tags.length) ? item.tags[0] : "";
+  }
+  if (state.sort === "folder") {
+    return item.folder || "";
+  }
+  return null;
+}
+
+function galleryGroupLabel(key) {
+  if (state.sort === "tag") {
+    return key ? `# ${key}` : "Uten tags";
+  }
+  if (state.sort === "folder") {
+    return key ? `📁 ${key}` : "📁 /";
+  }
+  return null;
+}
+
+state.gallery.forEach((item) => {
+    const groupKey = galleryGroupKey(item);
+    if (groupKey !== null && groupKey !== renderGallery._lastGroup) {
+      renderGallery._lastGroup = groupKey;
+      const header = document.createElement("div");
+      header.className = "gallery-group-header";
+      header.textContent = galleryGroupLabel(groupKey);
+      els.gallery.appendChild(header);
+    }
     const fragment = els.cardTemplate.content.cloneNode(true);
     const root = fragment.querySelector(".card");
     const thumb = fragment.querySelector(".thumb");
@@ -1615,11 +1661,45 @@ const tagDialogState = {
   tags: [],
 };
 
+function renderTagSuggestions() {
+  if (!els.tagSuggestions) {
+    return;
+  }
+  els.tagSuggestions.innerHTML = "";
+  // Suggest existing tags that are not already on this image.
+  const suggestions = state.tags
+    .map((entry) => entry.tag)
+    .filter((tag) => !tagDialogState.tags.some((existing) => existing.toLowerCase() === tag.toLowerCase()));
+
+  if (!suggestions.length) {
+    return;
+  }
+
+  const label = document.createElement("span");
+  label.className = "chip-empty";
+  label.textContent = "Existing tags:";
+  els.tagSuggestions.appendChild(label);
+
+  for (const tag of suggestions) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chip chip-suggestion";
+    chip.textContent = `+ ${tag}`;
+    chip.addEventListener("click", () => {
+      tagDialogState.tags.push(tag);
+      renderTagChips();
+      renderTagSuggestions();
+    });
+    els.tagSuggestions.appendChild(chip);
+  }
+}
+
 function openTagDialog(item) {
   tagDialogState.assetId = item.asset_id;
   tagDialogState.tags = [...(item.tags || [])];
   els.tagFilename.textContent = item.filename || item.asset_id;
   renderTagChips();
+  renderTagSuggestions();
   els.newTagInput.value = "";
   els.tagDialog.showModal();
 }
@@ -1669,6 +1749,7 @@ function addTagFromInput() {
   }
   els.newTagInput.value = "";
   renderTagChips();
+  renderTagSuggestions();
 }
 
 function initializeTagDialog() {
@@ -1957,14 +2038,16 @@ window.addEventListener("message", (event) => {
     return;
   }
   const msg = event.data;
-  if (!msg || msg.type !== "samsung_frame_art_auth" || !msg.access_token) {
+  if (!msg) {
     return;
   }
-  const hadToken = Boolean(state.authToken);
-  onAuthToken(msg.access_token);
-  // A fresh token after startup may follow an expiry; refresh data with it.
-  if (hadToken && initStarted) {
-    reloadData().catch(() => {});
+  if (msg.type === "samsung_frame_art_auth" && msg.access_token) {
+    const hadToken = Boolean(state.authToken);
+    onAuthToken(msg.access_token);
+    // A fresh token after startup may follow an expiry; refresh data with it.
+    if (hadToken && initStarted) {
+      reloadData().catch(() => {});
+    }
   }
 });
 
