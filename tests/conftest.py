@@ -26,25 +26,21 @@ if "hass_frontend" not in sys.modules:
     sys.modules["hass_frontend"] = _stub
 
 
-@pytest.fixture
-def hass_config_dir(tmp_path) -> str:
-    """Every test gets its own config directory (overrides the plugin default).
-
-    Uses pytest's built-in tmp_path instead of the plugin's helper so this
-    works across pytest-homeassistant-custom-component versions.
-    """
-    return str(tmp_path / "hass_config")
-
-
 @pytest.fixture(autouse=True)
-def _purge_integration_state(hass_config_dir):
+def _purge_integration_state(request):
     """Remove integration state so tests never observe another test's data.
 
-    Belt and braces: the per-test config directory should already be clean,
-    but if the config dir is ever shared (fixture override not applied), this
-    keeps tests deterministic.
+    Newer pytest-homeassistant-custom-component versions serve every test from
+    the shared ``testing_config`` directory regardless of ``hass_config_dir``
+    overrides, so we purge the integration's directories after Home Assistant
+    is up and before the test body runs.
     """
-    root = pathlib.Path(hass_config_dir)
+    if "hass" not in request.fixturenames:
+        yield
+        return
+
+    hass = request.getfixturevalue("hass")
+    root = pathlib.Path(hass.config.config_dir)
     for name in ("samsung_frame_art", "frame_art"):
         target = root / name
         if target.exists():
