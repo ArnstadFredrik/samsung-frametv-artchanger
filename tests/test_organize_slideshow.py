@@ -142,14 +142,28 @@ async def test_folder_metadata_and_filter(fake_tv, mock_entry, hass, enable_cust
 
     def run():
         gallery = service.list_gallery()
-        folders = gallery["folders"]
-        vacation = service.list_gallery(folder="vacation")["items"]
-        root = service.list_gallery(folder="")["items"]
-        return folders, vacation, root
+        import os
 
-    folders, vacation, root = await hass.async_add_executor_job(run)
+        media_files = []
+        for root, _, files in os.walk(service.settings.media_dir):
+            for name in files:
+                media_files.append(os.path.relpath(os.path.join(root, name), service.settings.media_dir))
+        state = service.store.load()
+        return (
+            gallery["folders"],
+            gallery["items"],
+            sorted(media_files),
+            [(a.get("filename"), a.get("ha_rel_path")) for a in state["assets"].values()],
+            service.settings.media_dir,
+        )
 
-    assert folders == ["vacation"]
+    folders, items, media_files, stored_assets, media_dir = await hass.async_add_executor_job(run)
+
+    assert folders == ["vacation"], (
+        f"media_dir={media_dir} media_files={media_files} stored_assets={stored_assets} items={items}"
+    )
+    vacation = service.list_gallery(folder="vacation")["items"]
+    root = service.list_gallery(folder="")["items"]
     assert len(vacation) == 2
     assert all(item["folder"] == "vacation" for item in vacation)
     assert len(root) == 1
