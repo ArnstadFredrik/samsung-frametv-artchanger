@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.7
+
+- Fixed the slideshow panel UI never leaving "Stopped": the status poller passed the raw API envelope to the UI update, overwriting the running state every 2 seconds (the slideshow itself ran fine).
+- Collection filter options are now also read from the gallery data payload (robustness).
+
 ## 0.0.6
 
 - Tags per image with gallery filtering, plus automatic media-folder collections (subfolders).

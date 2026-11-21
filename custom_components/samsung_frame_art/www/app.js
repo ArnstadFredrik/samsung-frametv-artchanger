@@ -845,7 +845,8 @@ async function reloadData() {
 
     const galleryData = readData(galleryPayload, "items") || [];
     state.gallery = galleryData;
-    updateCollectionOptions(galleryPayload.folders || []);
+    const galleryAll = readData(galleryPayload) || {};
+    updateCollectionOptions(galleryAll.folders || galleryPayload.folders || []);
     renderGallery();
     updateStatusBar(galleryPayload.meta || tvPayload.meta);
   } finally {
@@ -1723,8 +1724,8 @@ function updateSlideshowUi(status) {
 
 async function pollSlideshowStatus() {
   try {
-    const status = await api("/api/samsung_frame_art/slideshow");
-    updateSlideshowUi(status);
+    const payload = await api("/api/samsung_frame_art/slideshow");
+    updateSlideshowUi(readData(payload) || payload);
   } catch (error) {
     // ignore transient polling errors
   }
