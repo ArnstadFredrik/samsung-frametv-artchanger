@@ -18,7 +18,12 @@ from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant
 
 from .config import parse_tv_ips
-from .const import DOMAIN, SUPPORTED_UPLOAD_EXTENSIONS
+from .const import (
+    DOMAIN,
+    SLIDESHOW_MAX_INTERVAL_SECONDS,
+    SLIDESHOW_MIN_INTERVAL_SECONDS,
+    SUPPORTED_UPLOAD_EXTENSIONS,
+)
 from .errors import AppError, InvalidInputError, UnauthorizedError, error_payload
 from .schemas import (
     ActivateRequest,
@@ -26,6 +31,7 @@ from .schemas import (
     RandomRequest,
     parse_crop,
     parse_settings_update,
+    parse_slideshow_start,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -199,7 +205,12 @@ class FrameArtGalleryView(HomeAssistantView):
         service, _ = _service(request)
         filter_name = request.query.get("filter", "all")
         tv_ip = request.query.get("tv_ip") or None
-        gallery = service.list_gallery(filter_name=filter_name, tv_ip=tv_ip, trigger_refresh=True)
+        tag = request.query.get("tag") or None
+        folder = request.query.get("folder")
+        folder = None if folder in (None, "") else folder
+        gallery = service.list_gallery(
+            filter_name=filter_name, tv_ip=tv_ip, trigger_refresh=True, tag=tag, folder=folder
+        )
         return _with_meta(request, service, gallery, compatibility=gallery)
 
 
@@ -367,6 +378,92 @@ class FrameArtPreviewView(HomeAssistantView):
         return web.Response(body=preview, content_type="image/jpeg")
 
 
+class FrameArtTagsView(HomeAssistantView):
+    url = f"{BASE_URL}/tags"
+    name = "api:samsung_frame_art:tags"
+
+    @_sync_handler
+    def get(self, request: web.Request) -> Dict[str, Any]:
+        service, _ = _service(request)
+        return {"tags": service.list_tags()}
+
+
+class FrameArtItemTagsView(HomeAssistantView):
+    url = f"{BASE_URL}/items/{'{asset_id}'}/tags"
+    name = "api:samsung_frame_art:item_tags"
+
+    @_async_handler
+    async def put(self, request: web.Request) -> web.Response:
+        hass: HomeAssistant = request.app["hass"]
+        service, _ = _service(request)
+        asset_id = request.match_info["asset_id"]
+        body = await _read_json_body(request)
+
+        tags = body.get("tags")
+        if not isinstance(tags, list) or not all(isinstance(item, str) for item in tags):
+            raise InvalidInputError("tags must be a list of strings")
+
+        result = await _run_in_executor(hass, lambda: service.set_asset_tags(asset_id, tags))
+        return web.json_response(_with_meta(request, service, result, compatibility=result))
+
+
+class FrameArtSlideshowView(HomeAssistantView):
+    url = f"{BASE_URL}/slideshow"
+    name = "api:samsung_frame_art:slideshow"
+
+    @_sync_handler
+    def get(self, request: web.Request) -> Dict[str, Any]:
+        service, _ = _service(request)
+        status = service.slideshow.status()
+        return _with_meta(request, service, status, compatibility=status)
+
+
+class FrameArtSlideshowStartView(HomeAssistantView):
+    url = f"{BASE_URL}/slideshow/start"
+    name = "api:samsung_frame_art:slideshow_start"
+
+    @_async_handler
+    async def post(self, request: web.Request) -> web.Response:
+        hass: HomeAssistant = request.app["hass"]
+        service, _ = _service(request)
+        body = await _read_json_body(request)
+
+        config = parse_slideshow_start(body)
+        result = await _run_in_executor(
+            hass,
+            lambda: service.slideshow.start(
+                tv_ips=config.tv_ips,
+                tag=config.tag,
+                folder=config.folder,
+                interval_seconds=config.interval_seconds,
+                shuffle=config.shuffle,
+            ),
+        )
+        return web.json_response(_with_meta(request, service, result, compatibility=result))
+
+
+class FrameArtSlideshowStopView(HomeAssistantView):
+    url = f"{BASE_URL}/slideshow/stop"
+    name = "api:samsung_frame_art:slideshow_stop"
+
+    @_sync_handler
+    def post(self, request: web.Request) -> Dict[str, Any]:
+        service, _ = _service(request)
+        status = service.slideshow.stop()
+        return _with_meta(request, service, status, compatibility=status)
+
+
+class FrameArtSlideshowSkipView(HomeAssistantView):
+    url = f"{BASE_URL}/slideshow/skip"
+    name = "api:samsung_frame_art:slideshow_skip"
+
+    @_sync_handler
+    def post(self, request: web.Request) -> Dict[str, Any]:
+        service, _ = _service(request)
+        status = service.slideshow.skip()
+        return _with_meta(request, service, status, compatibility=status)
+
+
 class FrameArtAutomationRandomView(HomeAssistantView):
     """Bearer-token protected endpoint for HA automations (same as the add-on)."""
 
@@ -420,4 +517,10 @@ def async_register_http_views(hass: HomeAssistant) -> None:
     hass.http.register_view(FrameArtPreviewView())
     hass.http.register_view(FrameArtActivateView())
     hass.http.register_view(FrameArtDeleteView())
+    hass.http.register_view(FrameArtTagsView())
+    hass.http.register_view(FrameArtItemTagsView())
+    hass.http.register_view(FrameArtSlideshowView())
+    hass.http.register_view(FrameArtSlideshowStartView())
+    hass.http.register_view(FrameArtSlideshowStopView())
+    hass.http.register_view(FrameArtSlideshowSkipView())
     hass.http.register_view(FrameArtAutomationRandomView())

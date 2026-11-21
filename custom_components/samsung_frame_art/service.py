@@ -20,6 +20,7 @@ from .const import SUPPORTED_UPLOAD_EXTENSIONS
 from .errors import InvalidInputError, NoRandomAssetsError, NotFoundError, OperationError, classify_operation_exception
 from .media import MediaService
 from .runtime import RuntimeState
+from .slideshow import SlideshowManager
 from .store import StateStore
 from .tv_client import TVClient
 
@@ -76,8 +77,19 @@ class GalleryService:
         os.makedirs(self.thumb_cache_dir, exist_ok=True)
         self._tv_thumb_worker.start()
 
+        self.slideshow = SlideshowManager(
+            activate=lambda asset_id, tv_ips=None, ensure_upload=True, activate=True: self.activate_asset(
+                asset_id, tv_ips=tv_ips, ensure_upload=ensure_upload, activate=activate
+            ),
+            list_assets=lambda tag=None, folder=None: self.list_slideshow_assets(tag=tag, folder=folder),
+        )
+
     def stop(self) -> None:
-        """Signal the background thumbnail worker to exit and wait for it."""
+        """Signal background workers to exit and wait for them."""
+        try:
+            self.slideshow.stop()
+        except Exception:
+            pass
         self.runtime.wait_for_refresh(timeout=10.0)
         self._tv_thumb_queue.put(None)
         self._tv_thumb_worker.join(timeout=10.0)
@@ -463,6 +475,10 @@ class GalleryService:
             assets = state["assets"]
             tv_status: Dict[str, Any] = {}
 
+            # Re-scan the media folder so new and removed local files are
+            # picked up on every refresh, not only at startup (bootstrap).
+            self._scan_media_files(state)
+
             for tv_ip in self.settings.tv_ips:
                 snapshot, from_cache = self.runtime.get_or_fetch_snapshot(
                     tv_ip,
@@ -598,6 +614,7 @@ class GalleryService:
         active = any(bool(entry and entry.get("active")) for entry in selected_entries)
         synced = bool(on_ha and on_tv)
 
+        rel_path = asset.get("ha_rel_path") or ""
         return {
             "asset_id": asset["asset_id"],
             "filename": asset.get("filename") or asset["asset_id"],
@@ -606,21 +623,99 @@ class GalleryService:
             "synced": synced,
             "active": active,
             "source": asset.get("source", "upload"),
+            "folder": os.path.dirname(rel_path).replace("\\", "/") if rel_path else None,
+            "tags": sorted({str(tag) for tag in asset.get("tags", []) if str(tag).strip()}),
             "created_at": asset.get("created_at"),
             "updated_at": asset.get("updated_at"),
             "tv_map": tv_map,
         }
 
-    def list_gallery(self, filter_name: str = "all", tv_ip: Optional[str] = None, trigger_refresh: bool = True) -> Dict[str, Any]:
+    # ----------------------------------------------------------- organizing
+
+    def set_asset_tags(self, asset_id: str, tags: List[str]) -> Dict[str, Any]:
+        """Replace the tag list of an asset and persist it."""
+        state = self.store.load()
+        asset = state["assets"].get(asset_id)
+        if not asset:
+            raise NotFoundError(f"Unknown asset_id: {asset_id}")
+
+        cleaned: List[str] = []
+        seen = set()
+        for raw in tags:
+            value = str(raw).strip()
+            if not value:
+                continue
+            key = value.lower()
+            if key in seen:
+                continue
+            if len(value) > 32:
+                raise InvalidInputError(f"Tag too long (max 32 chars): {value}")
+            seen.add(key)
+            cleaned.append(value)
+
+        if len(cleaned) > 16:
+            raise InvalidInputError("Too many tags (max 16 per image)")
+
+        asset["tags"] = cleaned
+        asset["updated_at"] = utc_now()
+        self.store.save(state)
+        return {"asset_id": asset_id, "tags": cleaned}
+
+    def list_tags(self) -> List[Dict[str, Any]]:
+        """All tags with usage counts."""
+        state = self.store.load()
+        counts: Dict[str, int] = {}
+        for asset in state["assets"].values():
+            for tag in asset.get("tags", []):
+                key = str(tag).strip()
+                if not key:
+                    continue
+                counts[key] = counts.get(key, 0) + 1
+        return [
+            {"tag": tag, "count": count}
+            for tag, count in sorted(counts.items(), key=lambda item: item[0].lower())
+        ]
+
+    def list_slideshow_assets(
+        self,
+        tag: Optional[str] = None,
+        folder: Optional[str] = None,
+    ) -> List[str]:
+        """Asset IDs of local gallery images, optionally filtered by tag/folder."""
+        state = self.store.load()
+        result: List[str] = []
+        for asset_id, asset in state["assets"].items():
+            if not self._ha_path_for_asset(asset):
+                continue
+            if tag and tag not in [str(item) for item in asset.get("tags", [])]:
+                continue
+            if folder is not None:
+                rel_path = asset.get("ha_rel_path") or ""
+                current_folder = os.path.dirname(rel_path).replace("\\", "/")
+                if current_folder != folder:
+                    continue
+            result.append(asset_id)
+        return result
+
+    def list_gallery(
+        self,
+        filter_name: str = "all",
+        tv_ip: Optional[str] = None,
+        trigger_refresh: bool = True,
+        tag: Optional[str] = None,
+        folder: Optional[str] = None,
+    ) -> Dict[str, Any]:
         if trigger_refresh:
             self.refresh(force=False, wait=False)
         state = self.store.load()
 
         assets = state["assets"]
+        all_items: List[Dict[str, Any]] = []
         items: List[Dict[str, Any]] = []
 
         for asset in assets.values():
             item = self._build_item(asset, tv_ip)
+            all_items.append(item)
 
             if filter_name == "tv" and not item["on_tv"]:
                 continue
@@ -630,13 +725,22 @@ class GalleryService:
                 continue
             if filter_name == "unsynced" and item["synced"]:
                 continue
+            if tag and tag not in item.get("tags", []):
+                continue
+            if folder is not None and item.get("folder") != folder:
+                continue
 
             items.append(item)
 
         items.sort(key=lambda x: x.get("updated_at") or "", reverse=True)
 
+        # Folder options come from the unfiltered set so the collection menu
+        # does not shrink while a filter is active.
+        folders = sorted({item["folder"] for item in all_items if item.get("folder")})
+
         return {
             "items": items,
+            "folders": folders,
             "last_refresh": state.get("last_refresh"),
             "tv_status": state.get("tv_status", {}),
         }

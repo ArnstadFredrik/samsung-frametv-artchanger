@@ -20,6 +20,9 @@
           <p>Manage TV and Home Assistant art in one workflow.</p>
         </div>
         <div class="toolbar">
+          <select id="collectionSelect">
+            <option value="">All images</option>
+          </select>
           <select id="filterSelect">
             <option value="all">All</option>
             <option value="tv">TV only</option>
@@ -31,6 +34,7 @@
             <span class="status-dot" aria-hidden="true"></span>
             <span id="statusLabel">Status</span>
           </div>
+          <button id="slideshowBtn" class="btn secondary" title="Slideshow">Slideshow</button>
           <button id="openSettingsBtn" class="btn secondary">Settings</button>
           <button id="refreshBtn" class="btn secondary">Refresh</button>
           <button id="openUploadBtn" class="btn primary">Upload</button>
@@ -151,6 +155,59 @@
       </form>
     </dialog>
 
+    <dialog id="tagDialog" class="simple-dialog">
+      <form method="dialog" id="tagForm">
+        <h2>Edit tags</h2>
+        <p id="tagFilename" class="dialog-subtitle"></p>
+        <div id="tagChips" class="chip-list"></div>
+        <div class="inline-input">
+          <input id="newTagInput" type="text" placeholder="Add tag (max 32 chars)" maxlength="32" />
+          <button id="addTagBtn" type="button" class="btn secondary">Add</button>
+        </div>
+        <menu>
+          <button id="cancelTagBtn" type="button" class="btn secondary">Close</button>
+          <button id="saveTagBtn" type="submit" class="btn primary">Save</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="slideshowDialog" class="simple-dialog">
+      <form method="dialog" id="slideshowForm">
+        <h2>Slideshow</h2>
+        <label class="file-input">
+          <span>Collection</span>
+          <select id="slideshowCollection"></select>
+        </label>
+        <div class="settings-grid">
+          <label>
+            Interval
+            <div class="inline-input">
+              <input id="slideshowInterval" type="number" min="5" step="1" value="60" />
+              <select id="slideshowIntervalUnit">
+                <option value="1">seconds</option>
+                <option value="60" selected>minutes</option>
+                <option value="3600">hours</option>
+              </select>
+            </div>
+          </label>
+        </div>
+        <label class="check-label">
+          <input id="slideshowShuffle" type="checkbox" checked /> Shuffle order
+        </label>
+        <fieldset class="target-choice">
+          <legend class="section-label">TVs</legend>
+          <div id="slideshowTvList" class="upload-tv-list"></div>
+        </fieldset>
+        <p id="slideshowStatus" class="dialog-subtitle">Stopped</p>
+        <menu>
+          <button id="slideshowSkipBtn" type="button" class="btn secondary" hidden>Skip</button>
+          <button id="slideshowStopBtn" type="button" class="btn danger" hidden>Stop</button>
+          <button id="slideshowStartBtn" type="button" class="btn primary">Start</button>
+          <button id="slideshowCloseBtn" type="button" class="btn secondary">Close</button>
+        </menu>
+      </form>
+    </dialog>
+
     <dialog id="resultDialog" class="simple-dialog">
       <form method="dialog" id="resultForm">
         <h2 id="resultTitle">Action result</h2>
@@ -180,6 +237,7 @@
           </div>
           <div class="actions">
             <button class="btn tiny activate-btn">Set active</button>
+            <button class="btn tiny tags-btn">Tags</button>
             <button class="btn tiny danger delete-btn">Delete</button>
           </div>
         </div>

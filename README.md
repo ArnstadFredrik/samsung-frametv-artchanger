@@ -11,6 +11,8 @@ A Home Assistant custom integration that manages Samsung The Frame TV artwork wi
 ## Features
 
 - Gallery with art from Home Assistant (`frame_art` media folder) and from the TV.
+- **Organize images with tags** (edit per image, filter the gallery) and **media-folder subfolders** (picked up automatically); the collection filter narrows both.
+- **Built-in slideshow**: start it from any filtered collection (all images, a tag, or a folder), with an adjustable interval from 5 seconds up to 24 hours, optional shuffle, TV selection, skip, and stop — it runs inside Home Assistant even when the panel is closed.
 - Sync status per item (`HA`, `TV`, `SYNC`, `ACTIVE`).
 - Two-way visibility in the gallery:
   - HA items become visible and can be activated on the TV.

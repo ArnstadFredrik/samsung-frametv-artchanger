@@ -7,6 +7,8 @@ const state = {
   deleteAsset: null,
   retryContext: null,
   authToken: null,
+  collectionFilter: null,
+  tags: [],
   settings: {
     tv_ips: [],
     refresh_interval_seconds: 30,
@@ -20,6 +22,8 @@ const basePath = "";
 const withBasePath = (path) => `${basePath}${path}`;
 
 const els = {
+  collectionSelect: document.getElementById("collectionSelect"),
+  slideshowBtn: document.getElementById("slideshowBtn"),
   filterSelect: document.getElementById("filterSelect"),
   refreshBtn: document.getElementById("refreshBtn"),
   openUploadBtn: document.getElementById("openUploadBtn"),
@@ -56,6 +60,25 @@ const els = {
   discoverResults: document.getElementById("discoverResults"),
   cancelSettingsBtn: document.getElementById("cancelSettingsBtn"),
   saveSettingsBtn: document.getElementById("saveSettingsBtn"),
+  tagDialog: document.getElementById("tagDialog"),
+  tagForm: document.getElementById("tagForm"),
+  tagFilename: document.getElementById("tagFilename"),
+  tagChips: document.getElementById("tagChips"),
+  newTagInput: document.getElementById("newTagInput"),
+  addTagBtn: document.getElementById("addTagBtn"),
+  cancelTagBtn: document.getElementById("cancelTagBtn"),
+  saveTagBtn: document.getElementById("saveTagBtn"),
+  slideshowDialog: document.getElementById("slideshowDialog"),
+  slideshowCollection: document.getElementById("slideshowCollection"),
+  slideshowInterval: document.getElementById("slideshowInterval"),
+  slideshowIntervalUnit: document.getElementById("slideshowIntervalUnit"),
+  slideshowShuffle: document.getElementById("slideshowShuffle"),
+  slideshowTvList: document.getElementById("slideshowTvList"),
+  slideshowStatus: document.getElementById("slideshowStatus"),
+  slideshowStartBtn: document.getElementById("slideshowStartBtn"),
+  slideshowStopBtn: document.getElementById("slideshowStopBtn"),
+  slideshowSkipBtn: document.getElementById("slideshowSkipBtn"),
+  slideshowCloseBtn: document.getElementById("slideshowCloseBtn"),
   deleteDialog: document.getElementById("deleteDialog"),
   deleteForm: document.getElementById("deleteForm"),
   deleteMessage: document.getElementById("deleteMessage"),
@@ -312,9 +335,16 @@ function renderGallery() {
     if (item.active) {
       badges.appendChild(createBadge("ACTIVE", "active"));
     }
+    for (const tag of item.tags || []) {
+      badges.appendChild(createBadge(tag, "tag"));
+    }
 
     fragment.querySelector(".activate-btn").addEventListener("click", async () => {
       await activateItem(item, selectedTvIps());
+    });
+
+    fragment.querySelector(".tags-btn").addEventListener("click", () => {
+      openTagDialog(item);
     });
 
     fragment.querySelector(".delete-btn").addEventListener("click", () => {
@@ -808,14 +838,98 @@ async function reloadData() {
 
     const tvSelection = selectedTvIps();
     const tvQuery = tvSelection.length === 1 ? `&tv_ip=${encodeURIComponent(tvSelection[0])}` : "";
-    const galleryPayload = await api(`/api/samsung_frame_art/gallery?filter=${encodeURIComponent(state.filter)}${tvQuery}`);
+    const collectionQuery = collectionQueryParams();
+    const galleryPayload = await api(
+      `/api/samsung_frame_art/gallery?filter=${encodeURIComponent(state.filter)}${tvQuery}${collectionQuery}`
+    );
 
     const galleryData = readData(galleryPayload, "items") || [];
     state.gallery = galleryData;
+    updateCollectionOptions(galleryPayload.folders || []);
     renderGallery();
     updateStatusBar(galleryPayload.meta || tvPayload.meta);
   } finally {
     setBusy(false);
+  }
+}
+
+function collectionQueryParams() {
+  const filter = state.collectionFilter;
+  if (!filter) {
+    return "";
+  }
+  if (filter.type === "tag") {
+    return `&tag=${encodeURIComponent(filter.value)}`;
+  }
+  if (filter.type === "folder") {
+    return `&folder=${encodeURIComponent(filter.value)}`;
+  }
+  return "";
+}
+
+function collectionLabel(filter) {
+  if (!filter) {
+    return "All images";
+  }
+  return filter.type === "tag" ? `Tag: ${filter.value}` : `Folder: ${filter.value || "/"}`;
+}
+
+function updateCollectionOptions(folders) {
+  const select = els.collectionSelect;
+  if (!select) {
+    return;
+  }
+  const current = state.collectionFilter;
+  select.innerHTML = "";
+
+  const allOption = document.createElement("option");
+  allOption.value = "";
+  allOption.textContent = "All images";
+  select.appendChild(allOption);
+
+  if (state.tags.length) {
+    const group = document.createElement("optgroup");
+    group.label = "Tags";
+    for (const tagInfo of state.tags) {
+      const option = document.createElement("option");
+      option.value = `tag:${tagInfo.tag}`;
+      option.textContent = `${tagInfo.tag} (${tagInfo.count})`;
+      group.appendChild(option);
+    }
+    select.appendChild(group);
+  }
+
+  if (folders.length) {
+    const group = document.createElement("optgroup");
+    group.label = "Folders";
+    for (const folder of folders) {
+      const option = document.createElement("option");
+      option.value = `folder:${folder}`;
+      option.textContent = `Folder: ${folder}`;
+      group.appendChild(option);
+    }
+    select.appendChild(group);
+  }
+
+  if (current) {
+    const value = `${current.type}:${current.value}`;
+    const match = Array.from(select.options).find((option) => option.value === value);
+    if (match) {
+      select.value = value;
+      return;
+    }
+    // The selected collection no longer exists (tag removed, folder gone).
+    state.collectionFilter = null;
+  }
+  select.value = "";
+}
+
+async function refreshTags() {
+  try {
+    const payload = await api("/api/samsung_frame_art/tags");
+    state.tags = (payload && payload.tags) || [];
+  } catch (error) {
+    state.tags = [];
   }
 }
 
@@ -1385,11 +1499,29 @@ function initializeTopBar() {
     await reloadData();
   });
 
+  els.collectionSelect.addEventListener("change", () => {
+    const value = els.collectionSelect.value;
+    if (!value) {
+      state.collectionFilter = null;
+    } else {
+      const separator = value.indexOf(":");
+      state.collectionFilter = {
+        type: value.slice(0, separator),
+        value: value.slice(separator + 1),
+      };
+    }
+    reloadData().catch((error) => console.warn(error));
+  });
+
+  els.slideshowBtn.addEventListener("click", () => {
+    openSlideshowDialog();
+  });
+
   els.refreshBtn.addEventListener("click", async () => {
     try {
       await api("/api/samsung_frame_art/refresh", { method: "POST" });
       await reloadData();
-      toast("Refresh gestart.", "success");
+      toast("Refresh started.", "success");
     } catch (error) {
       toast(`Refresh failed: ${error.message} [${error.code || "UNKNOWN"}]`, "error");
     }
@@ -1403,12 +1535,295 @@ function initializeTopBar() {
 
 let initStarted = false;
 
+// ------------------------------------------------------------- tag dialog
+
+const tagDialogState = {
+  assetId: null,
+  tags: [],
+};
+
+function openTagDialog(item) {
+  tagDialogState.assetId = item.asset_id;
+  tagDialogState.tags = [...(item.tags || [])];
+  els.tagFilename.textContent = item.filename || item.asset_id;
+  renderTagChips();
+  els.newTagInput.value = "";
+  els.tagDialog.showModal();
+}
+
+function renderTagChips() {
+  els.tagChips.innerHTML = "";
+  if (!tagDialogState.tags.length) {
+    const empty = document.createElement("span");
+    empty.className = "chip-empty";
+    empty.textContent = "No tags yet";
+    els.tagChips.appendChild(empty);
+    return;
+  }
+  for (const tag of tagDialogState.tags) {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+
+    const label = document.createElement("span");
+    label.textContent = tag;
+    chip.appendChild(label);
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "chip-remove";
+    remove.textContent = "\u00D7";
+    remove.title = `Remove tag ${tag}`;
+    remove.addEventListener("click", () => {
+      tagDialogState.tags = tagDialogState.tags.filter((existing) => existing !== tag);
+      renderTagChips();
+    });
+    chip.appendChild(remove);
+    els.tagChips.appendChild(chip);
+  }
+}
+
+function addTagFromInput() {
+  const value = els.newTagInput.value.trim();
+  if (!value) {
+    return;
+  }
+  if (value.length > 32) {
+    toast("Tag is too long (max 32 chars).", "error");
+    return;
+  }
+  if (!tagDialogState.tags.some((existing) => existing.toLowerCase() === value.toLowerCase())) {
+    tagDialogState.tags.push(value);
+  }
+  els.newTagInput.value = "";
+  renderTagChips();
+}
+
+function initializeTagDialog() {
+  els.addTagBtn.addEventListener("click", addTagFromInput);
+  els.newTagInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addTagFromInput();
+    }
+  });
+
+  els.cancelTagBtn.addEventListener("click", () => {
+    els.tagDialog.close();
+  });
+
+  els.tagForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!tagDialogState.assetId) {
+      return;
+    }
+    try {
+      await api(`/api/samsung_frame_art/items/${encodeURIComponent(tagDialogState.assetId)}/tags`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: tagDialogState.tags }),
+      });
+      els.tagDialog.close();
+      await refreshTags();
+      await reloadData();
+      toast("Tags saved.", "success");
+    } catch (error) {
+      toast(`Saving tags failed: ${error.message}`, "error");
+    }
+  });
+}
+
+// --------------------------------------------------------- slideshow dialog
+
+let slideshowPollTimer = null;
+let slideshowRunning = false;
+
+function slideshowCollectionOptions() {
+  const select = els.slideshowCollection;
+  select.innerHTML = "";
+  const allOption = document.createElement("option");
+  allOption.value = "";
+  allOption.textContent = "All local images";
+  select.appendChild(allOption);
+
+  for (const tagInfo of state.tags) {
+    const option = document.createElement("option");
+    option.value = `tag:${tagInfo.tag}`;
+    option.textContent = `Tag: ${tagInfo.tag} (${tagInfo.count})`;
+    select.appendChild(option);
+  }
+}
+
+function renderSlideshowTvList() {
+  els.slideshowTvList.innerHTML = "";
+  if (!state.tvs.length) {
+    const empty = document.createElement("div");
+    empty.className = "section-label upload-tv-list-empty";
+    empty.textContent = "No TVs configured.";
+    els.slideshowTvList.appendChild(empty);
+    return;
+  }
+  for (const tv of state.tvs) {
+    const label = document.createElement("label");
+    label.className = "upload-tv-target";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.className = "slideshow-tv-target";
+    checkbox.value = tv.ip;
+    checkbox.checked = state.selectedTvIps.includes(tv.ip);
+    label.appendChild(checkbox);
+
+    const text = document.createElement("span");
+    text.textContent = tv.ip;
+    label.appendChild(text);
+
+    els.slideshowTvList.appendChild(label);
+  }
+}
+
+function selectedSlideshowTvIps() {
+  return Array.from(els.slideshowTvList.querySelectorAll(".slideshow-tv-target:checked")).map(
+    (checkbox) => checkbox.value
+  );
+}
+
+function updateSlideshowUi(status) {
+  slideshowRunning = Boolean(status && status.running);
+  els.slideshowBtn.classList.toggle("toggle-active", slideshowRunning);
+  els.slideshowStartBtn.hidden = slideshowRunning;
+  els.slideshowStopBtn.hidden = !slideshowRunning;
+  els.slideshowSkipBtn.hidden = !slideshowRunning;
+
+  if (!status) {
+    els.slideshowStatus.textContent = "Stopped";
+    return;
+  }
+  if (!status.running) {
+    const error = status.last_error ? ` \u2014 last error: ${status.last_error}` : "";
+    els.slideshowStatus.textContent = status.shown_count
+      ? `Stopped after ${status.shown_count} image(s).${error}`
+      : "Stopped";
+    return;
+  }
+  const config = status.config || {};
+  const interval = config.interval_seconds || 0;
+  const intervalText = interval >= 3600 ? `${Math.round(interval / 360) / 10} h` : interval >= 60 ? `${Math.round(interval / 60)} min` : `${interval} s`;
+  const parts = [`Running \u2014 every ${intervalText}`];
+  if (status.assets_in_rotation) {
+    parts.push(`${status.assets_in_rotation} image(s) in rotation`);
+  }
+  if (status.current_filename) {
+    parts.push(`now: ${status.current_filename}`);
+  }
+  if (status.last_error) {
+    parts.push(`error: ${status.last_error}`);
+  }
+  els.slideshowStatus.textContent = parts.join(" \u00B7 ");
+}
+
+async function pollSlideshowStatus() {
+  try {
+    const status = await api("/api/samsung_frame_art/slideshow");
+    updateSlideshowUi(status);
+  } catch (error) {
+    // ignore transient polling errors
+  }
+}
+
+function startSlideshowPolling() {
+  if (slideshowPollTimer) {
+    return;
+  }
+  slideshowPollTimer = setInterval(pollSlideshowStatus, 2000);
+  pollSlideshowStatus();
+}
+
+function stopSlideshowPolling() {
+  if (slideshowPollTimer) {
+    clearInterval(slideshowPollTimer);
+    slideshowPollTimer = null;
+  }
+  slideshowRunning = false;
+  els.slideshowBtn.classList.remove("toggle-active");
+}
+
+function openSlideshowDialog() {
+  slideshowCollectionOptions();
+  renderSlideshowTvList();
+  els.slideshowDialog.showModal();
+  startSlideshowPolling();
+}
+
+function initializeSlideshowDialog() {
+  els.slideshowCloseBtn.addEventListener("click", () => {
+    els.slideshowDialog.close();
+  });
+
+  els.slideshowDialog.addEventListener("close", () => {
+    stopSlideshowPolling();
+  });
+
+  els.slideshowStartBtn.addEventListener("click", async () => {
+    const amount = Number(els.slideshowInterval.value) || 0;
+    const unit = Number(els.slideshowIntervalUnit.value) || 1;
+    const intervalSeconds = Math.round(amount * unit);
+
+    const collectionValue = els.slideshowCollection.value || "";
+    const separator = collectionValue.indexOf(":");
+    const body = {
+      interval_seconds: intervalSeconds,
+      shuffle: els.slideshowShuffle.checked,
+    };
+    if (collectionValue.startsWith("tag:")) {
+      body.tag = collectionValue.slice(4);
+    } else if (collectionValue.startsWith("folder:")) {
+      body.folder = collectionValue.slice(7);
+    }
+    const tvIps = selectedSlideshowTvIps();
+    if (tvIps.length) {
+      body.tv_ips = tvIps;
+    }
+
+    try {
+      const payload = await api("/api/samsung_frame_art/slideshow/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      updateSlideshowUi(readData(payload) || payload);
+      toast("Slideshow started.", "success");
+    } catch (error) {
+      toast(`Starting slideshow failed: ${error.message}`, "error");
+    }
+  });
+
+  els.slideshowStopBtn.addEventListener("click", async () => {
+    try {
+      const payload = await api("/api/samsung_frame_art/slideshow/stop", { method: "POST" });
+      updateSlideshowUi(readData(payload) || payload);
+      toast("Slideshow stopped.", "success");
+    } catch (error) {
+      toast(`Stopping slideshow failed: ${error.message}`, "error");
+    }
+  });
+
+  els.slideshowSkipBtn.addEventListener("click", async () => {
+    try {
+      await api("/api/samsung_frame_art/slideshow/skip", { method: "POST" });
+    } catch (error) {
+      toast(`Skipping failed: ${error.message}`, "error");
+    }
+  });
+}
+
 async function init() {
   bindCropEvents();
   initializeUploadDialog();
   initializeDeleteDialog();
   initializeResultDialog();
   initializeSettingsDialog();
+  initializeTagDialog();
+  initializeSlideshowDialog();
   initializeTopBar();
 
   // Wait briefly for the access token forwarded by the panel element.
@@ -1416,10 +1831,12 @@ async function init() {
   // panel), start anyway; API calls will fail with a clear 401 toast.
   await waitForAuthToken(8000);
 
+  await refreshTags();
   await loadSettings();
   state.selectedTvIps = [...state.settings.tv_ips];
 
   await reloadData();
+  pollSlideshowStatus();
 
   state.timer = setInterval(async () => {
     try {

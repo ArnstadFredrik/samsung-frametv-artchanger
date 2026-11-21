@@ -321,6 +321,63 @@ input[type="text"] {
   background: #15803d;
 }
 
+.badge.tag {
+  background: #7c3aed;
+}
+
+/* Tag editor chips */
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+  min-height: 24px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 4px 6px 4px 10px;
+  font-size: 0.72rem;
+  background: var(--panel-2);
+}
+
+.chip-remove {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.chip-empty {
+  font-size: 0.74rem;
+  opacity: 0.6;
+}
+
+.check-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  margin: 8px 0;
+}
+
+.dialog-subtitle {
+  font-size: 0.8rem;
+  opacity: 0.75;
+  margin: 6px 0;
+}
+
+.btn.toggle-active {
+  background: #1d4ed8;
+  color: #fff;
+}
+
 .actions {
   margin-top: 10px;
   display: flex;

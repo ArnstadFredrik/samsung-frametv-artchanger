@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.6
+
+- Tags per image with gallery filtering, plus automatic media-folder collections (subfolders).
+- Built-in slideshow: filtered collection, interval 5 s – 24 h, shuffle, TV selection, skip/stop; runs server-side with the panel closed.
+- Refresh now re-scans the media folder, so new and removed local files are picked up without a restart.
+
 ## 0.0.5
 
 - Server-side JPEG crop preview for formats browsers cannot render (HEIC/HEIF/TIFF).

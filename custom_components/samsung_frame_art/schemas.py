@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 import json
 from typing import Any, Dict, List, Optional
 
+from .const import SLIDESHOW_MAX_INTERVAL_SECONDS, SLIDESHOW_MIN_INTERVAL_SECONDS
 from .errors import InvalidInputError
 
 
@@ -100,6 +101,42 @@ class SettingsUpdateRequest:
     tv_ips: List[str] = field(default_factory=list)
     refresh_interval_seconds: int = 30
     snapshot_ttl_seconds: int = 20
+
+
+@dataclass
+class SlideshowStartRequest:
+    tv_ips: Optional[List[str]] = None
+    tag: Optional[str] = None
+    folder: Optional[str] = None
+    interval_seconds: int = 3600
+    shuffle: bool = True
+
+
+def parse_slideshow_start(payload: Dict[str, Any]) -> SlideshowStartRequest:
+    tv_ips = payload.get("tv_ips")
+    if tv_ips is not None and not (isinstance(tv_ips, list) and all(isinstance(item, str) for item in tv_ips)):
+        raise InvalidInputError("tv_ips must be a list of strings")
+
+    tag = payload.get("tag")
+    if tag is not None and (not isinstance(tag, str) or not tag.strip()):
+        tag = None
+    folder = payload.get("folder")
+    if folder is not None and not isinstance(folder, str):
+        raise InvalidInputError("folder must be a string")
+
+    return SlideshowStartRequest(
+        tv_ips=tv_ips,
+        tag=tag,
+        folder=folder,
+        interval_seconds=_as_int(
+            payload.get("interval_seconds", 3600),
+            "interval_seconds",
+            3600,
+            minimum=SLIDESHOW_MIN_INTERVAL_SECONDS,
+            maximum=SLIDESHOW_MAX_INTERVAL_SECONDS,
+        ),
+        shuffle=_as_bool(payload.get("shuffle"), True),
+    )
 
 
 def parse_settings_update(payload: Dict[str, Any]) -> SettingsUpdateRequest:
