@@ -27,9 +27,13 @@ if "hass_frontend" not in sys.modules:
 
 
 @pytest.fixture
-def hass_config_dir(hass_tmp_config_dir) -> str:
-    """Every test gets its own config directory (overrides the plugin default)."""
-    return hass_tmp_config_dir
+def hass_config_dir(tmp_path) -> str:
+    """Every test gets its own config directory (overrides the plugin default).
+
+    Uses pytest's built-in tmp_path instead of the plugin's helper so this
+    works across pytest-homeassistant-custom-component versions.
+    """
+    return str(tmp_path / "hass_config")
 
 
 @pytest.fixture(autouse=True)
