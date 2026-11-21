@@ -246,3 +246,33 @@ async def test_unload_removes_panel_and_services(hass, mock_entry, enable_custom
     assert not _panel_exists(hass, DOMAIN)
     services = hass.services.async_services().get(DOMAIN, {})
     assert "random" not in services
+
+
+@pytest.mark.asyncio
+async def test_config_flow_and_options_flow(hass, enable_custom_integrations):
+    # New config flow form loads (this is what 500'd before the fix).
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    assert result["type"] == "form"
+    assert result["step_id"] == "user"
+
+    # Full setup + options flow form loads.
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"tv": TV_IP, "automation_token": "t", "media_dir": ""},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] == "form"
+    assert result["step_id"] == "init"
+
+    # Submitting options persists new values.
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        user_input={"tv": "10.0.0.50", "automation_token": "tok", "media_dir": ""},
+    )
+    await hass.async_block_till_done()
+    assert result["type"] == "create_entry"
+    assert entry.options["tv"] == "10.0.0.50"

@@ -111,12 +111,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             sidebar_icon=PANEL_ICON,
             config={
                 "_panel_custom": {
-                    "name": "samsung-frame-art",
+                    "name": "samsung-frame-art-panel",
                     "embed_iframe": True,
+                    "module_url": f"/{PANEL_URL_PATH}/www/panel.js",
                     "url_path": f"/{PANEL_URL_PATH}/www/index.html",
                     "sidebar_title": PANEL_TITLE,
                     "sidebar_icon": PANEL_ICON,
-                    "trusted": True,
                 }
             },
         )

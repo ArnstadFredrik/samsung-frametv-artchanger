@@ -31,7 +31,7 @@ class FrameArtConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
-        return FrameArtOptionsFlowHandler(config_entry)
+        return FrameArtOptionsFlowHandler()
 
     async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
         errors: Dict[str, str] = {}
@@ -71,10 +71,11 @@ class FrameArtConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class FrameArtOptionsFlowHandler(config_entries.OptionsFlow):
-    """Options flow: edit TV addresses and the automation token."""
+    """Options flow: edit TV addresses and the automation token.
 
-    def __init__(self, config_entry) -> None:
-        self.config_entry = config_entry
+    ``self.config_entry`` is provided automatically by the flow manager and
+    must not be assigned in ``__init__``.
+    """
 
     async def async_step_init(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
         if user_input is not None:
