@@ -134,3 +134,16 @@ class MediaService:
             output = BytesIO()
             thumb.save(output, format="JPEG", quality=85)
             return output.getvalue()
+
+    def build_preview(self, file_bytes: bytes) -> bytes:
+        """Decode any supported input format into a browser-renderable JPEG.
+
+        The crop UI sends absolute pixel coordinates measured against the
+        preview image, so the preview must keep the original dimensions and
+        apply the same EXIF orientation as prepare_image does.
+        """
+        with Image.open(BytesIO(file_bytes)) as opened:
+            image = self._normalize_orientation(opened.convert("RGB"))
+            output = BytesIO()
+            image.save(output, format="JPEG", quality=88)
+            return output.getvalue()

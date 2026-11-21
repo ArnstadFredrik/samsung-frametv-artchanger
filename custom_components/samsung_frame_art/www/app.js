@@ -1228,6 +1228,25 @@ async function submitUpload(event) {
   }
 }
 
+async function loadPreviewBlob(form) {
+  const response = await fetch("/api/samsung_frame_art/preview", {
+    method: "POST",
+    body: form,
+    headers: authHeaders(),
+  });
+  if (!response.ok) {
+    let detail = `${response.status} ${response.statusText}`;
+    try {
+      const data = await response.json();
+      detail = data?.detail || data?.error?.message || detail;
+    } catch (error) {
+      // non-JSON error body
+    }
+    throw new Error(detail);
+  }
+  return response.blob();
+}
+
 function initializeUploadDialog() {
   els.openUploadBtn.addEventListener("click", () => {
     renderUploadTvList();
@@ -1247,19 +1266,46 @@ function initializeUploadDialog() {
 
     resetCropState();
 
-    const objectUrl = URL.createObjectURL(file);
-    cropState.sourceObjectUrl = objectUrl;
+    // Formats browsers cannot decode in <img> (heic/heif/tiff and unknown
+    // types) get a server-side JPEG preview; dimensions are preserved and
+    // EXIF orientation applied, so crop coordinates stay valid.
+    const extension = (file.name.split(".").pop() || "").toLowerCase();
+    const nativeFormats = ["jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"];
 
-    const original = new Image();
-    original.onload = () => {
-      cropState.originalImage = original;
-      cropState.rotation = Number(els.rotationInput.value);
-      updateRotationLabel();
-      updateFlipButtonUi();
-      rebuildRotatedPreview(true);
+    const startPreview = (sourceUrl) => {
+      cropState.sourceObjectUrl = sourceUrl;
+
+      const original = new Image();
+      original.onload = () => {
+        cropState.originalImage = original;
+        cropState.rotation = Number(els.rotationInput.value);
+        updateRotationLabel();
+        updateFlipButtonUi();
+        rebuildRotatedPreview(true);
+      };
+      original.onerror = () => {
+        toast("Could not load a preview for this file.", "error");
+      };
+      original.src = sourceUrl;
     };
 
-    original.src = objectUrl;
+    if (nativeFormats.includes(extension)) {
+      startPreview(URL.createObjectURL(file));
+      return;
+    }
+
+    const form = new FormData();
+    form.append("file", file);
+    loadPreviewBlob(form)
+      .then((blob) => {
+        if (!blob) {
+          return;
+        }
+        startPreview(URL.createObjectURL(blob));
+      })
+      .catch((error) => {
+        toast(`Could not load a preview: ${error.message}`, "error");
+      });
   });
 
   els.uploadDialog.addEventListener("close", () => {

@@ -331,6 +331,42 @@ class FrameArtDeleteView(HomeAssistantView):
         return web.json_response(_with_meta(request, service, result, compatibility=result))
 
 
+class FrameArtPreviewView(HomeAssistantView):
+    """Convert an uploaded image to a browser-renderable JPEG crop preview.
+
+    Needed because browsers cannot decode HEIC/HEIF/TIFF in <img> elements.
+    """
+
+    url = f"{BASE_URL}/preview"
+    name = "api:samsung_frame_art:preview"
+
+    @_async_handler
+    async def post(self, request: web.Request) -> web.Response:
+        hass: HomeAssistant = request.app["hass"]
+        service, _ = _service(request)
+
+        post = await request.post()
+        upload = post.get("file")
+        if not isinstance(upload, web.FileField):
+            raise InvalidInputError("Missing file field")
+
+        filename = upload.filename or ""
+        ext = os.path.splitext(filename)[1].lower()
+        if ext not in SUPPORTED_UPLOAD_EXTENSIONS:
+            raise InvalidInputError(
+                "Unsupported image format: "
+                f"{ext or 'unknown'}. Supported: "
+                + ", ".join(sorted(SUPPORTED_UPLOAD_EXTENSIONS))
+            )
+
+        payload = upload.file.read()
+        if not payload:
+            raise InvalidInputError("Uploaded file is empty")
+
+        preview = await _run_in_executor(hass, lambda: service.media_service.build_preview(payload))
+        return web.Response(body=preview, content_type="image/jpeg")
+
+
 class FrameArtAutomationRandomView(HomeAssistantView):
     """Bearer-token protected endpoint for HA automations (same as the add-on)."""
 
@@ -381,6 +417,7 @@ def async_register_http_views(hass: HomeAssistant) -> None:
     hass.http.register_view(FrameArtRefreshView())
     hass.http.register_view(FrameArtThumbView())
     hass.http.register_view(FrameArtUploadView())
+    hass.http.register_view(FrameArtPreviewView())
     hass.http.register_view(FrameArtActivateView())
     hass.http.register_view(FrameArtDeleteView())
     hass.http.register_view(FrameArtAutomationRandomView())

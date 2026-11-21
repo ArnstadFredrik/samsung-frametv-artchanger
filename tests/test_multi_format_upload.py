@@ -130,6 +130,43 @@ async def test_upload_endpoint_accepts_new_formats(hass, hass_client, enable_cus
 
 
 @pytest.mark.asyncio
+async def test_preview_endpoint_converts_unrenderable_formats(hass, hass_client, enable_custom_integrations):
+    import pillow_heif
+
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={"tv": TV_IP, "automation_token": "t", "media_dir": ""}
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    client = await hass_client()
+
+    async def preview(fmt: str, filename: str, payload: bytes):
+        form = aiohttp.FormData()
+        form.add_field("file", payload, filename=filename, content_type="application/octet-stream")
+        resp = await client.post("/api/samsung_frame_art/preview", data=form)
+        return resp
+
+    # TIFF: browsers do not render it in <img>.
+    resp = await preview("TIFF", "photo.tiff", _image_bytes("TIFF"))
+    assert resp.status == 200
+    assert resp.headers["Content-Type"].startswith("image/jpeg")
+    out = Image.open(io.BytesIO(await resp.read()))
+    assert out.format == "JPEG"
+    assert out.size == (640, 360)  # full resolution kept for crop coordinates
+
+    # HEIC: browsers (except Safari) do not render it in <img>.
+    heif_image = Image.new("RGB", (640, 360), (200, 10, 10))
+    heif_buffer = io.BytesIO()
+    pillow_heif.from_pillow(heif_image).save(heif_buffer, format="HEIF")
+    resp = await preview("HEIC", "photo.heic", heif_buffer.getvalue())
+    assert resp.status == 200
+    out = Image.open(io.BytesIO(await resp.read()))
+    assert out.format == "JPEG"
+    assert out.size == (640, 360)
+
+
+@pytest.mark.asyncio
 async def test_upload_endpoint_rejects_unsupported_format(hass, hass_client, enable_custom_integrations):
     entry = MockConfigEntry(
         domain=DOMAIN, data={"tv": TV_IP, "automation_token": "t", "media_dir": ""}
