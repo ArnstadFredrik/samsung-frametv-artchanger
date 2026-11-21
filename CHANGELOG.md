@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.10
+
+- Slideshow indicator in the top bar: a pulsing badge showing interval and current image whenever the slideshow runs — kept up to date by a background status poll even with the dialog closed.
+
 ## 0.0.9
 
 - Tag dialog now suggests existing tags as clickable chips.

@@ -27,6 +27,8 @@ const els = {
   collectionSelect: document.getElementById("collectionSelect"),
   sortSelect: document.getElementById("sortSelect"),
   slideshowBtn: document.getElementById("slideshowBtn"),
+  slideshowIndicator: document.getElementById("slideshowIndicator"),
+  slideshowIndicatorText: document.getElementById("slideshowIndicatorText"),
   filterSelect: document.getElementById("filterSelect"),
   refreshBtn: document.getElementById("refreshBtn"),
   openUploadBtn: document.getElementById("openUploadBtn"),
@@ -1844,6 +1846,27 @@ function selectedSlideshowTvIps() {
 function updateSlideshowUi(status) {
   slideshowRunning = Boolean(status && status.running);
   els.slideshowBtn.classList.toggle("toggle-active", slideshowRunning);
+
+  // Topbar indicator: visible whenever the slideshow runs, updated on every
+  // status poll so it stays correct even when the dialog is closed.
+  if (els.slideshowIndicator && els.slideshowIndicatorText) {
+    els.slideshowIndicator.hidden = !slideshowRunning;
+    if (slideshowRunning) {
+      const config = status.config || {};
+      const interval = config.interval_seconds || 0;
+      const intervalText = interval >= 3600
+        ? `${Math.round((interval / 360) * 10) / 10} h`
+        : interval >= 60
+          ? `${Math.round(interval / 60)} min`
+          : `${interval} s`;
+      const bits = [`Slideshow ${intervalText}`];
+      if (status.current_filename) {
+        bits.push(status.current_filename);
+      }
+      els.slideshowIndicatorText.textContent = bits.join(" · ");
+    }
+  }
+
   els.slideshowStartBtn.hidden = slideshowRunning;
   els.slideshowStopBtn.hidden = !slideshowRunning;
   els.slideshowSkipBtn.hidden = !slideshowRunning;
@@ -1897,8 +1920,9 @@ function stopSlideshowPolling() {
     clearInterval(slideshowPollTimer);
     slideshowPollTimer = null;
   }
-  slideshowRunning = false;
-  els.slideshowBtn.classList.remove("toggle-active");
+  // The dialog is closed, but the slideshow may still run — do one final
+  // status fetch so the topbar indicator stays correct.
+  pollSlideshowStatus();
 }
 
 function openSlideshowDialog() {
@@ -1998,6 +2022,8 @@ async function init() {
         return;
       }
       await reloadData();
+      // Keep the slideshow indicator current while the panel is open.
+      pollSlideshowStatus();
     } catch (error) {
       console.warn(error);
     }
